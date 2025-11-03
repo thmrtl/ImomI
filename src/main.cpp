@@ -24,26 +24,26 @@ struct Player {
 };
 
 struct Enemy {
-    Vector2 spawn_pos;  // In world unit
-    Vector2 pos;        // In pixel
-    float speed;        // In world unit
+    Vector2 spawn_pos;      // In world unit
+    Vector2 pos;            // In world unit
+    float speed;            // In world unit
     int hp;
     int hp_max;
     bool is_hit;
 };
 
 struct Bonus {
-    Vector2 spawn_pos;  // In world unit
-    Vector2 pos;        // In pixel
-    float speed;        // In world unit
+    Vector2 spawn_pos;      // In world unit
+    Vector2 pos;            // In pixel
+    float speed;            // In world unit
     int hp;
     bool is_hit;
 };
 
 struct Bullet {
     bool alive;
-    Vector2 pos;        // In pixel
-    float speed;        // In world unit
+    Vector2 pos;            // In pixel
+    float speed;            // In world unit
     int dir;
 };
 
@@ -89,9 +89,9 @@ int main(void) {
     game_state.level_speed = 1.5f;
     game_state.is_paused = false;
     game_state.enemies = {
-        Enemy{Vector2{1, 1}, Vector2{1 * PIXEL_PER_UNIT, 1 * PIXEL_PER_UNIT}, -1.0, 1, 1},
-        Enemy{Vector2{2, 2}, Vector2{2 * PIXEL_PER_UNIT, 2 * PIXEL_PER_UNIT}, -1.0, 1, 1},
-        Enemy{Vector2{4, 3}, Vector2{4 * PIXEL_PER_UNIT, 3 * PIXEL_PER_UNIT}, -1.0, 1, 1},
+        Enemy{Vector2{1, -1}, Vector2{1, -1}, -1.0, 1, 1},
+        Enemy{Vector2{2, 0}, Vector2{2, 0}, -1.0, 1, 1},
+        Enemy{Vector2{4, 2}, Vector2{4, 2}, -1.0, 1, 1},
     };
 
     game_state.bonuses = {
@@ -110,6 +110,15 @@ int main(void) {
     return 0;
 }
 
+Rectangle WorldToScreen(Rectangle rect, Rectangle screen)
+{
+    float x = rect.x * PIXEL_PER_UNIT + screen.x + screen.width / 2;
+    float y = rect.y * PIXEL_PER_UNIT + screen.y + screen.height / 2;
+    float width = rect.width * PIXEL_PER_UNIT;
+    float height = rect.height * PIXEL_PER_UNIT;
+    return Rectangle(x, y, width, height);
+}
+
 Rectangle GetBoundingBox(float cx, float cy, float width, float height)
 {
     float x = cx - width * 0.5f;
@@ -124,7 +133,7 @@ Rectangle GetBoundingBox(Player const &player)
 
 Rectangle GetBoundingBox(Enemy const &enemy)
 {
-    return GetBoundingBox(enemy.pos.x, enemy.pos.y, 30, 30);
+    return GetBoundingBox(enemy.pos.x, enemy.pos.y, 0.3f, 0.3f);
 }
 
 Rectangle GetBoundingBox(Bonus const &bonus)
@@ -201,6 +210,7 @@ void ShowCurrentScreen(GameState &game_state)
         Rectangle player_rect = GetBoundingBox(player);
         int screen_width = GetScreenWidth();
         int screen_height = GetScreenHeight();
+        Rectangle screen(0, 0, (float)screen_width, (float)screen_height);
         int active_enemies = 0;
 
         if (!game_state.is_paused) {
@@ -234,8 +244,8 @@ void ShowCurrentScreen(GameState &game_state)
                     game_state.level_progression = 1.0f;
             }
 
-            player.pos.x += game_state.input_dir.x * elpased_time * player.speed * PIXEL_PER_UNIT;
-            player.pos.y += game_state.input_dir.y * elpased_time * player.speed * PIXEL_PER_UNIT;
+            player.pos.x += game_state.input_dir.x * elpased_time * player.speed;
+            player.pos.y += game_state.input_dir.y * elpased_time * player.speed;
             
             if ((IsKeyDown(KEY_SPACE) || (IsGamepadAvailable(0) && IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT))) && player.cooldown_time <= 0.0f) {
                 player.cooldown_time = player.cooldown_time_max;
@@ -259,12 +269,12 @@ void ShowCurrentScreen(GameState &game_state)
                 enemy.is_hit = false;
 
                 Rectangle enemy_rect = GetBoundingBox(enemy);
-                if (enemy.spawn_pos.x - enemy_rect.width / 2 >= spawn_x_line || (enemy.spawn_pos.x - spawn_x_line) + enemy_rect.width / 2 < 0)
-                    continue;
+                enemy.pos.x = enemy.spawn_pos.x;
+                // if (enemy.spawn_pos.x - enemy_rect.width / 2 >= spawn_x_line)
+                //     continue;
                 active_enemies++;
 
                 // TODO: index position on level progression instead of frametime.
-                enemy.pos.x = (enemy.spawn_pos.x - spawn_x_line) * PIXEL_PER_UNIT  + screen_width / 2;
 
                 //enemy.pos.x += elpased_time * enemy.speed * PIXEL_PER_UNIT;
                 
@@ -313,6 +323,7 @@ void ShowCurrentScreen(GameState &game_state)
         BeginDrawing();
             ClearBackground(BLACK);
             float tick_pos = game_state.level_progression * game_state.level_length * PIXEL_PER_UNIT;
+            screen.x = -tick_pos;
             int spacing = (int)(1 * PIXEL_PER_UNIT);
             int offset = (int)tick_pos % screen_width;
             DrawText(dyn_format("{:.3f}", game_state.level_progression).c_str(), 0, 0, 20, WHITE);
@@ -335,10 +346,13 @@ void ShowCurrentScreen(GameState &game_state)
             DrawText(dyn_format("Active: {}", active_enemies).c_str(), 0, screen_height - 20, 20, WHITE);
             for (int i = 0; i < game_state.enemies.size(); i++) {
                 Enemy& enemy = game_state.enemies[i];
-                Rectangle enemy_rect = GetBoundingBox(enemy);
-                DrawRectangle(enemy_rect, enemy.is_hit ? BLUE : RED);
-                DrawText(std::to_string(i + 1).c_str(), (int)enemy_rect.x, (int)enemy_rect.y, 20, WHITE);
-                DrawText(std::to_string(enemy.hp).c_str(), (int)enemy_rect.x, (int)enemy_rect.y + 20, 20, WHITE);
+                Rectangle draw_rect = WorldToScreen(GetBoundingBox(enemy), screen);
+                DrawText(std::to_string(enemy.hp).c_str(), (int)draw_rect.x, (int)draw_rect.y, 20, WHITE);
+                DrawText(dyn_format("{:.2f}", draw_rect.x).c_str(), 0, 150 + 20 * (2 * i + 1), 20, WHITE);
+                if (draw_rect.x + draw_rect.width < 0 || draw_rect.x > screen.width)
+                    continue;
+                DrawRectangle(draw_rect, enemy.is_hit ? BLUE : RED);
+                DrawText(dyn_format("{:.2f}", enemy.pos.x).c_str(), 0, 150 + 20 * (2 * i), 20, WHITE);
             }
             for (int i = 0; i < game_state.bonuses.size(); i++) {
                 Bonus& bonus = game_state.bonuses[i];
