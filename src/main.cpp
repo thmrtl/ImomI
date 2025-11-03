@@ -24,24 +24,26 @@ struct Player {
 };
 
 struct Enemy {
-    Vector2 pos;
-    float speed;
+    Vector2 spawn_pos;  // In world unit
+    Vector2 pos;        // In pixel
+    float speed;        // In world unit
     int hp;
     int hp_max;
     bool is_hit;
 };
 
 struct Bonus {
-    Vector2 pos;
-    float speed;
+    Vector2 spawn_pos;  // In world unit
+    Vector2 pos;        // In pixel
+    float speed;        // In world unit
     int hp;
     bool is_hit;
 };
 
 struct Bullet {
     bool alive;
-    Vector2 pos;
-    float speed;
+    Vector2 pos;        // In pixel
+    float speed;        // In world unit
     int dir;
 };
 
@@ -87,10 +89,11 @@ int main(void) {
     game_state.level_speed = 1.5f;
     game_state.is_paused = false;
     game_state.enemies = {
-        Enemy{Vector2{400, 180}, -1.0, 1, 1},
-        Enemy{Vector2{500, 300}, -2.0, 2, 2},
-        Enemy{Vector2{600, 400}, -1.0, 1, 1},
+        Enemy{Vector2{1, 1}, Vector2{1 * PIXEL_PER_UNIT, 1 * PIXEL_PER_UNIT}, -1.0, 1, 1},
+        Enemy{Vector2{2, 2}, Vector2{2 * PIXEL_PER_UNIT, 2 * PIXEL_PER_UNIT}, -1.0, 1, 1},
+        Enemy{Vector2{4, 3}, Vector2{4 * PIXEL_PER_UNIT, 3 * PIXEL_PER_UNIT}, -1.0, 1, 1},
     };
+
     game_state.bonuses = {
         Bonus{Vector2{400, 150}, 0.0, 1},
     };
@@ -193,17 +196,18 @@ void ShowCurrentScreen(GameState &game_state)
             game_state.is_paused = !game_state.is_paused;
         }
 
-        float elpasedTime = GetFrameTime();
+        float elpased_time = GetFrameTime();
         Player& player = game_state.player;
         Rectangle player_rect = GetBoundingBox(player);
         int screen_width = GetScreenWidth();
         int screen_height = GetScreenHeight();
+        int active_enemies = 0;
 
         if (!game_state.is_paused) {
-            player.invincibility_time -= elpasedTime;
+            player.invincibility_time -= elpased_time;
             if (player.invincibility_time <= 0.0f)
                 player.invincibility_time = 0.0f;
-            player.cooldown_time -= elpasedTime;
+            player.cooldown_time -= elpased_time;
             if (player.cooldown_time <= 0.0f)
                 player.cooldown_time = 0.0f;
             
@@ -219,19 +223,19 @@ void ShowCurrentScreen(GameState &game_state)
                 else
                     game_state.level_progression = 0.0f;
             }
-            static bool is_progression_paused = false;
+            static bool is_progression_paused = true;
             if (IsKeyPressed(KEY_I)) {
                 is_progression_paused = !is_progression_paused;
             }
 
             if (!is_progression_paused && game_state.level_progression <= 1.0f) {
-                game_state.level_progression += elpasedTime * game_state.level_speed / game_state.level_length;
+                game_state.level_progression += elpased_time * game_state.level_speed / game_state.level_length;
                 if (game_state.level_progression > 1.0f)
                     game_state.level_progression = 1.0f;
             }
 
-            player.pos.x += game_state.input_dir.x * elpasedTime * player.speed * PIXEL_PER_UNIT;
-            player.pos.y += game_state.input_dir.y * elpasedTime * player.speed * PIXEL_PER_UNIT;
+            player.pos.x += game_state.input_dir.x * elpased_time * player.speed * PIXEL_PER_UNIT;
+            player.pos.y += game_state.input_dir.y * elpased_time * player.speed * PIXEL_PER_UNIT;
             
             if ((IsKeyDown(KEY_SPACE) || (IsGamepadAvailable(0) && IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT))) && player.cooldown_time <= 0.0f) {
                 player.cooldown_time = player.cooldown_time_max;
@@ -242,21 +246,31 @@ void ShowCurrentScreen(GameState &game_state)
                 Bullet& bullet = game_state.bullets[i];
                 Rectangle bullet_rect = GetBoundingBox(bullet);
                 if (bullet.alive) {
-                    bullet.pos.x += bullet.dir * elpasedTime * bullet.speed * PIXEL_PER_UNIT;
+                    bullet.pos.x += bullet.dir * elpased_time * bullet.speed * PIXEL_PER_UNIT;
                     if (bullet_rect.x >= screen_width || bullet_rect.x + bullet_rect.width <= 0) {
                         bullet.alive = false;
                     }
                 }
             }
 
+            float spawn_x_line = game_state.level_progression * game_state.level_length;
             for (int i = 0; i < game_state.enemies.size(); i++) {
                 Enemy& enemy = game_state.enemies[i];
                 enemy.is_hit = false;
-                enemy.pos.x += elpasedTime * enemy.speed * PIXEL_PER_UNIT;
+
                 Rectangle enemy_rect = GetBoundingBox(enemy);
-                if (enemy_rect.x + enemy_rect.width <= 0.0f) {
-                    enemy.pos.x = screen_width + enemy_rect.width * 0.5f;
-                }
+                if (enemy.spawn_pos.x - enemy_rect.width / 2 >= spawn_x_line || (enemy.spawn_pos.x - spawn_x_line) + enemy_rect.width / 2 < 0)
+                    continue;
+                active_enemies++;
+
+                // TODO: index position on level progression instead of frametime.
+                enemy.pos.x = (enemy.spawn_pos.x - spawn_x_line) * PIXEL_PER_UNIT  + screen_width / 2;
+
+                //enemy.pos.x += elpased_time * enemy.speed * PIXEL_PER_UNIT;
+                
+                // if (enemy_rect.x + enemy_rect.width <= 0.0f) {
+                //     enemy.pos.x = screen_width + enemy_rect.width * 0.5f;
+                // }
                 if (CheckCollisionRecs(player_rect, enemy_rect)) {
                     if (player.invincibility_time <= 0.0f) {
                         player.invincibility_time = player.invincibility_time_max;
@@ -311,11 +325,14 @@ void ShowCurrentScreen(GameState &game_state)
                 int x = (i - (int)tick_pos) % screen_width;
                 if (x < 0)
                     x += screen_width;
-                DrawText(std::to_string(i - x_start).c_str(), x, screen_height / 4 - 20, 20, WHITE);
+                DrawText(std::to_string(x - x_start).c_str(), x, screen_height / 4 - 20, 20, WHITE);
                 DrawLine(x, screen_height / 4, x, 3 * screen_height / 4, YELLOW);
             }
             DrawText(dyn_format("{:.3f}", game_state.input_dir.x).c_str(), 0, 40, 20, WHITE);
             DrawText(dyn_format("{:.3f}", game_state.input_dir.y).c_str(), 0, 60, 20, WHITE);
+            DrawText(dyn_format("Spawn: {}", game_state.level_progression * game_state.level_length).c_str(), 0, screen_height - 60, 20, WHITE);
+            DrawText(dyn_format("Inactive: {}", game_state.enemies.size() - active_enemies).c_str(), 0, screen_height - 40, 20, WHITE);
+            DrawText(dyn_format("Active: {}", active_enemies).c_str(), 0, screen_height - 20, 20, WHITE);
             for (int i = 0; i < game_state.enemies.size(); i++) {
                 Enemy& enemy = game_state.enemies[i];
                 Rectangle enemy_rect = GetBoundingBox(enemy);
