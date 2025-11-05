@@ -112,6 +112,9 @@ int main(void) {
             player.pos.x += frame_time * player.velocity.x * inputs.dir.x;
             player.pos.y += frame_time * player.velocity.y * inputs.dir.y;
 
+            player.pos.x = Clamp(player.pos.x, camera.target.x + 50, camera.target.x + screen_width - 50);
+            player.pos.y = Clamp(player.pos.y, camera.target.y + 50, camera.target.y + screen_height - 50);
+
             if (inputs.fire && cooldown_time <= 0.0f) {
                 cooldown_time = 0.12f;
                 CreateBullet(bullets, { player.pos.x + 10, player.pos.y }, { 1000.0f, 0.0f });
