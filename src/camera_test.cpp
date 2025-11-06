@@ -1,5 +1,6 @@
 #include "raylib.h"
 #include "raymath.h"
+#include <fstream>
 #include <print>
 #include <string>
 #include <vector>
@@ -28,16 +29,30 @@ struct Inputs {
     bool stop;
 };
 
+
 Inputs GetInputs();
 Rectangle GetBoundingBox(float cx, float cy, float width, float height);
 void DrawRectangle(Rectangle rect, Color color);
 void DrawEntity(Entity const& entity, Vector2 size, Color color);
 void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity);
 
+
 template<typename... Args>
 std::string dyn_format(std::string_view rt_fmt_str, Args&&... args);
 
+
+void LoadLevelPackage(std::string const& name);
+
+
 int main(void) {
+    try {
+        LoadLevelPackage("Assets/level0.mid");
+    }
+    catch(std::exception& e) {
+        std::println("{}", e.what());
+    }
+    return 0;
+
     InitWindow(800, 450, "ImomI");
     SetTargetFPS(60);
 
@@ -273,6 +288,37 @@ void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
             break;
         }
     }
+}
+
+void LoadLevelPackage(std::string const &name)
+{
+    std::string working_dir = GetWorkingDirectory();
+    std::println("{}", working_dir);
+    std::ifstream pkg(name, std::ios::binary);
+    if (!pkg) {
+        throw std::runtime_error(std::format("Can't open package file {}", name));
+    }
+
+    std::println("Loading '{}'", name);
+    
+    // File header
+    int constexpr headerSize = 8;
+    std::string header(headerSize, '\0');
+    pkg.read(header.data(), headerSize);
+    std::print("Header: ");
+    for (int i = 0; i < header.size(); i++) {
+        std::print("{:02X} ", header[i]);
+    }
+    std::println();
+
+    auto identifier = header.substr(0, 4);
+    std::println("Identifier: {}", identifier);
+
+    uint32_t chunklen = 0;
+    for (int i = 0; i < 4; i++) {
+        chunklen |= uint32_t(header[4 + i]) << (8 * (3 - i));
+    }
+    std::println("Chunk length: {}", chunklen);
 }
 
 template<typename... Args>
