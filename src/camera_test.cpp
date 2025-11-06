@@ -319,6 +319,19 @@ void LoadLevelPackage(std::string const &name)
         chunklen |= uint32_t(header[4 + i]) << (8 * (3 - i));
     }
     std::println("Chunk length: {}", chunklen);
+
+    std::vector<uint8_t> buffer(chunklen, '\0');
+    pkg.read(reinterpret_cast<char*>(buffer.data()), chunklen);
+    for (int i = 0; i < buffer.size(); i++) {
+        std::print("{:02X} ", buffer[i]);
+    }
+    std::println();
+    int16_t format = (buffer[0] << 8) | buffer[1];
+    int16_t ntracks = (buffer[2] << 8) | buffer[3];
+    int16_t tickdiv = (buffer[4] << 8) | buffer[5];
+    std::println("Format: {}", format);
+    std::println("NTracks: {}", ntracks);
+    std::println("Tickdiv: {}", tickdiv);
 }
 
 template<typename... Args>
