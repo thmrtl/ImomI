@@ -302,9 +302,9 @@ void LoadLevelPackage(std::string const &name)
     std::println("Loading '{}'", name);
     
     // File header
-    int constexpr headerSize = 8;
-    std::string header(headerSize, '\0');
-    pkg.read(header.data(), headerSize);
+    int constexpr header_size = 8;
+    std::string header(header_size, '\0');
+    pkg.read(header.data(), header_size);
     std::print("Header: ");
     for (int i = 0; i < header.size(); i++) {
         std::print("{:02X} ", header[i]);
@@ -316,11 +316,11 @@ void LoadLevelPackage(std::string const &name)
 
     uint32_t chunklen = 0;
     for (int i = 0; i < 4; i++) {
-        chunklen |= uint32_t(header[4 + i]) << (8 * (3 - i));
+        chunklen |= uint32_t(uint8_t(header[4 + i])) << (8 * (3 - i));
     }
     std::println("Chunk length: {}", chunklen);
 
-    std::vector<uint8_t> buffer(chunklen, '\0');
+    std::vector<uint8_t> buffer(chunklen, 0);
     pkg.read(reinterpret_cast<char*>(buffer.data()), chunklen);
     for (int i = 0; i < buffer.size(); i++) {
         std::print("{:02X} ", buffer[i]);
@@ -332,6 +332,28 @@ void LoadLevelPackage(std::string const &name)
     std::println("Format: {}", format);
     std::println("NTracks: {}", ntracks);
     std::println("Tickdiv: {}", tickdiv);
+
+    for (int ic = 0; ic < ntracks; ic++) {
+        std::vector<uint8_t> header(header_size, 0);
+        pkg.read(reinterpret_cast<char*>(header.data()), header_size);
+        std::print("Header: ");
+        for (int i = 0; i < header.size(); i++) {
+            std::print("{:02X} ", header[i]);
+        }
+        std::println();
+
+        std::string identifier(reinterpret_cast<char*>(header.data()), 4);
+        std::println("Identifier: {}", identifier);
+
+        uint32_t chunklen = 0;
+        for (int i = 0; i < 4; i++) {
+            chunklen |= uint32_t(uint8_t(header[4 + i])) << (8 * (3 - i));
+        }
+        std::println("Chunk length: {}", chunklen);
+
+        std::vector<uint8_t> buffer(chunklen, 0);
+        pkg.read(reinterpret_cast<char*>(buffer.data()), chunklen);
+    }
 }
 
 template<typename... Args>
@@ -340,7 +362,6 @@ std::string dyn_format(std::string_view rt_fmt_str, Args&&... args)
     return std::vformat(rt_fmt_str, std::make_format_args(args...));
 }
 
-// TODO: Verify that IsGamepadAvailable true doesn't prevent keyboard inputs.
 Vector2 GetInputDir()
 {
     Vector2 dir{0, 0};
