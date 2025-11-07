@@ -51,7 +51,7 @@ Level LoadLevelPackage(std::string const& name);
 int main(void) {
     Level level;
     try {
-        level = LoadLevelPackage("Assets/level1.mid");
+        level = LoadLevelPackage("Assets/level0.mid");
         std::println("Found {} enemies.", level.enemies.size());
         for (auto& enemy : level.enemies) {
             std::println("Enemy: ({},{})", enemy.pos.x, enemy.pos.y);
@@ -490,8 +490,8 @@ Level LoadLevelPackage(std::string const &name)
                     std::println("Note: {}", note);
                     std::println("velocity: {}", velocity);
                     Entity enemy;
-                    enemy.pos.x = (float)ticks / tickdiv * PIXEL_PER_UNIT - 500; // Test
-                    enemy.pos.y = (float)note * 0.1f * PIXEL_PER_UNIT;
+                    enemy.pos.x = (float)ticks / tickdiv * PIXEL_PER_UNIT;
+                    enemy.pos.y = (float)note * 0.1f * PIXEL_PER_UNIT - 500; // Test
                     level.enemies.push_back(std::move(enemy));
                 }
                 else {
