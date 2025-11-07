@@ -51,7 +51,7 @@ Level LoadLevelPackage(std::string const& name);
 int main(void) {
     Level level;
     try {
-        level = LoadLevelPackage("Assets/level0.mid");
+        level = LoadLevelPackage("Assets/01 Battle 1.mid");
         std::println("Found {} enemies.", level.enemies.size());
         for (auto& enemy : level.enemies) {
             std::println("Enemy: ({},{})", enemy.pos.x, enemy.pos.y);
@@ -64,6 +64,13 @@ int main(void) {
 
     InitWindow(800, 450, "ImomI");
     SetTargetFPS(60);
+
+    InitAudioDevice();
+
+    Music music = LoadMusicStream("Assets/clocksuv_normal.xvag.wav");
+    music.looping = true;
+
+    PlayMusicStream(music);
 
     bool is_paused = false;
     Camera2D camera;
@@ -98,8 +105,8 @@ int main(void) {
     for (int i = 0; i < spawn_pos.size(); i++) {
         Vector2& pos = spawn_pos[i];
         Entity& enemy = enemies[i];
-        pos.x = enemy.pos.x;
-        pos.y = enemy.pos.y;
+        pos.x = enemy.pos.x * PIXEL_PER_UNIT;
+        pos.y = enemy.pos.y * 0.1f * PIXEL_PER_UNIT - 590 + GetScreenHeight() / 2;
         enemy.alive = true;
         enemy.can_move = false;
     }
@@ -116,6 +123,8 @@ int main(void) {
     int alive_entities = 0;
     int active_entities = 0;
     while (!WindowShouldClose()) {
+        UpdateMusicStream(music);
+        
         Inputs inputs = GetInputs();
         
         if (inputs.pause)
@@ -254,6 +263,10 @@ int main(void) {
             }
         EndDrawing();
     }
+
+    UnloadMusicStream(music);
+
+    CloseAudioDevice();
 
     CloseWindow();
 
@@ -490,8 +503,10 @@ Level LoadLevelPackage(std::string const &name)
                     std::println("Note: {}", note);
                     std::println("velocity: {}", velocity);
                     Entity enemy;
-                    enemy.pos.x = (float)ticks / tickdiv * PIXEL_PER_UNIT;
-                    enemy.pos.y = (float)note * 0.1f * PIXEL_PER_UNIT - 500; // Test
+                    enemy.pos.x = (float)ticks / tickdiv;
+                    enemy.pos.y = (float)note;
+                    enemy.alive = false;
+                    enemy.can_move = false;
                     level.enemies.push_back(std::move(enemy));
                 }
                 else {
