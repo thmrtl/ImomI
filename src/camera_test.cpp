@@ -41,17 +41,26 @@ template<typename... Args>
 std::string dyn_format(std::string_view rt_fmt_str, Args&&... args);
 
 
-void LoadLevelPackage(std::string const& name);
+struct Level {
+    std::vector<Entity> enemies;
+};
+
+Level LoadLevelPackage(std::string const& name);
 
 
 int main(void) {
+    Level level;
     try {
-        LoadLevelPackage("Assets/level0.mid");
+        level = LoadLevelPackage("Assets/level1.mid");
+        std::println("Found {} enemies.", level.enemies.size());
+        for (auto& enemy : level.enemies) {
+            std::println("Enemy: ({},{})", enemy.pos.x, enemy.pos.y);
+        }
     }
     catch(std::exception& e) {
         std::println("{}", e.what());
     }
-    return 0;
+    // return 0;
 
     InitWindow(800, 450, "ImomI");
     SetTargetFPS(60);
@@ -70,19 +79,29 @@ int main(void) {
         .velocity = { 360.0f, 360.0f },
     };
 
-    std::vector<Vector2> spawn_pos(50);
+    // std::vector<Vector2> spawn_pos(50);
+    // for (int i = 0; i < spawn_pos.size(); i++) {
+    //     Vector2& pos = spawn_pos[i];
+    //     pos.x = i * 100.0f;
+    //     pos.y = (i * 100) % 350 + 50.0f;
+    // }
+
+    // std::vector<Entity> enemies(50);
+    // for (int i = 0; i < enemies.size(); i++) {
+    //     Entity& entity = enemies[i];
+    //     entity.alive = true;
+    //     entity.can_move = false;
+    //     entity.pos = spawn_pos[i];
+    // }
+    std::vector<Entity> enemies = level.enemies;
+    std::vector<Vector2> spawn_pos(enemies.size());
     for (int i = 0; i < spawn_pos.size(); i++) {
         Vector2& pos = spawn_pos[i];
-        pos.x = i * 100.0f;
-        pos.y = (i * 100) % 350 + 50.0f;
-    }
-
-    std::vector<Entity> enemies(50);
-    for (int i = 0; i < enemies.size(); i++) {
-        Entity& entity = enemies[i];
-        entity.alive = true;
-        entity.can_move = false;
-        entity.pos = spawn_pos[i];
+        Entity& enemy = enemies[i];
+        pos.x = enemy.pos.x;
+        pos.y = enemy.pos.y;
+        enemy.alive = true;
+        enemy.can_move = false;
     }
 
     std::vector<Entity> bullets(20);
@@ -290,7 +309,29 @@ void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
     }
 }
 
-void LoadLevelPackage(std::string const &name)
+std::string GetSystemMessageName(uint8_t byte) {
+    switch (byte)
+    {
+    case 0xf0: return "";
+    default: return "???";
+    }
+}
+
+std::string GetVoiceMessageName(uint8_t byte) {
+    switch (byte & 0xf0)
+    {
+    case 0x80: return "Note Off";
+    case 0x90: return "Note On";
+    case 0xA0: return "Polyphonic Pressure";
+    case 0xB0: return "Controller";
+    case 0xC0: return "Program Change";
+    case 0xD0: return "Channel Pressure";
+    case 0xE0: return "Pitch Bend";
+    default: return "???";
+    }
+}
+
+Level LoadLevelPackage(std::string const &name)
 {
     std::string working_dir = GetWorkingDirectory();
     std::println("{}", working_dir);
@@ -299,17 +340,15 @@ void LoadLevelPackage(std::string const &name)
         throw std::runtime_error(std::format("Can't open package file {}", name));
     }
 
-    std::println("Loading '{}'", name);
+    Level level;
+
+    std::println("#=== MIDI file: {}", name);
     
     // File header
     int constexpr header_size = 8;
     std::string header(header_size, '\0');
     pkg.read(header.data(), header_size);
-    std::print("Header: ");
-    for (int i = 0; i < header.size(); i++) {
-        std::print("{:02X} ", header[i]);
-    }
-    std::println();
+    std::println("#--- Header ---");
 
     auto identifier = header.substr(0, 4);
     std::println("Identifier: {}", identifier);
@@ -320,15 +359,11 @@ void LoadLevelPackage(std::string const &name)
     }
     std::println("Chunk length: {}", chunklen);
 
-    std::vector<uint8_t> buffer(chunklen, 0);
-    pkg.read(reinterpret_cast<char*>(buffer.data()), chunklen);
-    for (int i = 0; i < buffer.size(); i++) {
-        std::print("{:02X} ", buffer[i]);
-    }
-    std::println();
-    int16_t format = (buffer[0] << 8) | buffer[1];
-    int16_t ntracks = (buffer[2] << 8) | buffer[3];
-    int16_t tickdiv = (buffer[4] << 8) | buffer[5];
+    std::vector<uint8_t> header_buffer(chunklen, 0);
+    pkg.read(reinterpret_cast<char*>(header_buffer.data()), chunklen);
+    int16_t format = (header_buffer[0] << 8) | header_buffer[1];
+    int16_t ntracks = (header_buffer[2] << 8) | header_buffer[3];
+    int16_t tickdiv = (header_buffer[4] << 8) | header_buffer[5];
     std::println("Format: {}", format);
     std::println("NTracks: {}", ntracks);
     std::println("Tickdiv: {}", tickdiv);
@@ -336,11 +371,7 @@ void LoadLevelPackage(std::string const &name)
     for (int ic = 0; ic < ntracks; ic++) {
         std::vector<uint8_t> header(header_size, 0);
         pkg.read(reinterpret_cast<char*>(header.data()), header_size);
-        std::print("Header: ");
-        for (int i = 0; i < header.size(); i++) {
-            std::print("{:02X} ", header[i]);
-        }
-        std::println();
+        std::println("#--- Track ---");
 
         std::string identifier(reinterpret_cast<char*>(header.data()), 4);
         std::println("Identifier: {}", identifier);
@@ -353,7 +384,129 @@ void LoadLevelPackage(std::string const &name)
 
         std::vector<uint8_t> buffer(chunklen, 0);
         pkg.read(reinterpret_cast<char*>(buffer.data()), chunklen);
+
+        std::vector<uint8_t> sysex_buffer;
+        bool sysex = false;
+        uint32_t ticks = 0;
+        auto it = buffer.begin();
+        while (it != buffer.end()) {
+            std::println("#-- Event --");
+            uint32_t delta_time = 0;
+            uint8_t byte = 0;
+            auto ita = it;
+            do {
+                byte = *it;
+                delta_time = (delta_time << 7) | (byte & 0x7f);
+                it++;
+            } while (byte & 0x80 && it != buffer.end());
+            std::print("Delta time: {}", delta_time);
+            std::print(" | ");
+            for (auto itb = ita; itb != it; itb++) {
+                std::print("{:02X} ", *itb);
+            }
+            std::println();
+
+            ticks += delta_time;
+
+            byte = *it;
+            ita = it;
+            if (byte == 0xff) {
+                std::println("Type: Meta | {:02X}", byte);
+                it++;
+                uint8_t msg = *it;
+                std::println("Message: {:02X}", msg);
+                it++;
+    
+                uint32_t length = 0;
+                do {
+                    byte = *it;
+                    auto b = (byte & 0x7f);
+                    length = (length << 7) | (byte & 0x7f);
+                    it++;
+                } while (byte & 0x80 && it != buffer.end());
+                std::println("Length: {}", length);
+                
+                // skip data for now
+                it += length;
+            }
+            if (byte == 0xf0) {
+                std::println("Type: SysEx | {:02X}", byte);
+
+                uint32_t length = 0;
+                do {
+                    byte = *it;
+                    auto b = (byte & 0x7f);
+                    length = (length << 7) | (byte & 0x7f);
+                    it++;
+                } while (byte & 0x80 && it != buffer.end());
+                std::println("Length: {}", length);
+
+                it += length;
+                sysex_buffer.insert(sysex_buffer.end(), ita, it);
+                if (length && *(it - 1) != 0xf7) {
+                    sysex = true;
+                }
+            }
+            if (byte == 0xf7) {
+                std::println("Type: SysEx | {:02X}", byte);
+
+                uint32_t length = 0;
+                do {
+                    byte = *it;
+                    auto b = (byte & 0x7f);
+                    length = (length << 7) | (byte & 0x7f);
+                    it++;
+                } while (byte & 0x80 && it != buffer.end());
+                std::println("Length: {}", length);
+
+                it += length;
+                if (sysex) {
+                    sysex_buffer.insert(sysex_buffer.end(), ita, it);
+                }
+                if (length && *(it - 1) == 0xf7) {
+                    sysex = false;
+                    std::print("SysEx buffer: ");
+                    for (int i = 0; i < sysex_buffer.size(); i++) {
+                        std::print("{:02X} ", sysex_buffer[i]);
+                    }
+                    std::println();
+                    sysex_buffer.clear();
+                }
+            }
+            if ((byte & 0xf0) >= 0x80) {
+                std::println("Type: MIDI | {:02X}", byte);
+                std::println("Message: {}", GetVoiceMessageName(byte));
+                std::println("Channel: {}", byte & 0x0f);
+                uint32_t length = ((byte & 0xf0) >= 0xc0 && (byte & 0xf0) < 0xe0) ? 2 : 3;
+                std::println("Length: {}", length);
+                std::fflush(stdout);
+
+                if ((byte & 0xf0) == 0x90) { // Note On
+                    it++;
+                    uint8_t note = *it;
+                    it++;
+                    uint8_t velocity = *it;
+                    it++;
+                    std::println("Note: {}", note);
+                    std::println("velocity: {}", velocity);
+                    Entity enemy;
+                    enemy.pos.x = (float)ticks / tickdiv * PIXEL_PER_UNIT - 500; // Test
+                    enemy.pos.y = (float)note * 0.1f * PIXEL_PER_UNIT;
+                    level.enemies.push_back(std::move(enemy));
+                }
+                else {
+                    it += length;
+                }
+            }
+            std::print(" | ");
+            for (auto itb = ita; itb != it; itb++) {
+                std::print("{:02X} ", *itb);
+            }
+            std::println();
+            std::fflush(stdout);
+        }
     }
+    return level;
 }
 
 template<typename... Args>
