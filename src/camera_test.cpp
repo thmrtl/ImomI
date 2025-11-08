@@ -18,6 +18,7 @@ struct Entity {
     bool can_move;
     Vector2 pos;
     Vector2 velocity;
+    int type;
 };
 
 struct Inputs {
@@ -51,7 +52,7 @@ Level LoadLevelPackage(std::string const& name);
 int main(void) {
     Level level;
     try {
-        level = LoadLevelPackage("Assets/01 Battle 1.mid");
+        level = LoadLevelPackage("Assets/level0.mid");
         std::println("Found {} enemies.", level.enemies.size());
         for (auto& enemy : level.enemies) {
             std::println("Enemy: ({},{})", enemy.pos.x, enemy.pos.y);
@@ -109,6 +110,7 @@ int main(void) {
         pos.y = enemy.pos.y * 0.1f * PIXEL_PER_UNIT - 590 + GetScreenHeight() / 2;
         enemy.alive = true;
         enemy.can_move = false;
+        enemy.pos = pos;
     }
 
     std::vector<Entity> bullets(20);
@@ -123,6 +125,12 @@ int main(void) {
     int alive_entities = 0;
     int active_entities = 0;
     while (!WindowShouldClose()) {
+        if (is_paused) {
+            SetMusicVolume(music, 0.2f);
+        }
+        else {
+            SetMusicVolume(music, 1.0f);
+        }
         UpdateMusicStream(music);
         
         Inputs inputs = GetInputs();
@@ -221,13 +229,19 @@ int main(void) {
                     if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width)
                         continue;
                     Color color;
-                    if (enemy.alive && enemy.can_move)
-                        color = LIME;
-                    if (enemy.alive && !enemy.can_move)
+                    if (enemy.alive && enemy.can_move) { // Alive in bounds
+                        if (enemy.type == 1) {
+                            color = YELLOW;
+                        }
+                        else {
+                            color = LIME;
+                        }
+                    }
+                    else if (enemy.alive && !enemy.can_move) // Alive OOB
                         color = BLUE;
-                    if (!enemy.alive && enemy.can_move)
+                    else if (!enemy.alive && enemy.can_move) // Dead in bound
                         color = ORANGE;
-                    if (!enemy.alive && enemy.can_move)
+                    else if (!enemy.alive && enemy.can_move) // Dead OOB
                         color = RED;
                     DrawEntity(enemy, { 20.0f, 20.0f }, color);
                 }
@@ -346,6 +360,14 @@ std::string GetVoiceMessageName(uint8_t byte) {
 
 Level LoadLevelPackage(std::string const &name)
 {
+    struct Event {
+        uint8_t track;
+        uint8_t channel;
+        uint8_t note;
+        uint8_t velocity;
+        int start_ticks;
+    };
+
     std::string working_dir = GetWorkingDirectory();
     std::println("{}", working_dir);
     std::ifstream pkg(name, std::ios::binary);
@@ -353,7 +375,7 @@ Level LoadLevelPackage(std::string const &name)
         throw std::runtime_error(std::format("Can't open package file {}", name));
     }
 
-    Level level;
+    std::vector<Event> events;
 
     std::println("#=== MIDI file: {}", name);
     
@@ -381,10 +403,13 @@ Level LoadLevelPackage(std::string const &name)
     std::println("NTracks: {}", ntracks);
     std::println("Tickdiv: {}", tickdiv);
 
+    uint8_t track = 0;
     for (int ic = 0; ic < ntracks; ic++) {
         std::vector<uint8_t> header(header_size, 0);
         pkg.read(reinterpret_cast<char*>(header.data()), header_size);
         std::println("#--- Track ---");
+
+        track++;
 
         std::string identifier(reinterpret_cast<char*>(header.data()), 4);
         std::println("Identifier: {}", identifier);
@@ -489,7 +514,8 @@ Level LoadLevelPackage(std::string const &name)
             if ((byte & 0xf0) >= 0x80) {
                 std::println("Type: MIDI | {:02X}", byte);
                 std::println("Message: {}", GetVoiceMessageName(byte));
-                std::println("Channel: {}", byte & 0x0f);
+                uint8_t channel = byte & 0x0f;
+                std::println("Channel: {}", channel);
                 uint32_t length = ((byte & 0xf0) >= 0xc0 && (byte & 0xf0) < 0xe0) ? 2 : 3;
                 std::println("Length: {}", length);
                 std::fflush(stdout);
@@ -502,12 +528,13 @@ Level LoadLevelPackage(std::string const &name)
                     it++;
                     std::println("Note: {}", note);
                     std::println("velocity: {}", velocity);
-                    Entity enemy;
-                    enemy.pos.x = (float)ticks / tickdiv;
-                    enemy.pos.y = (float)note;
-                    enemy.alive = false;
-                    enemy.can_move = false;
-                    level.enemies.push_back(std::move(enemy));
+                    Event event;
+                    event.track = track;
+                    event.channel = channel;
+                    event.start_ticks = ticks;
+                    event.note = note;
+                    event.velocity = velocity;
+                    events.push_back(std::move(event));
                 }
                 else {
                     it += length;
@@ -520,6 +547,17 @@ Level LoadLevelPackage(std::string const &name)
             std::println();
             std::fflush(stdout);
         }
+    }
+    Level level;
+    for (int i = 0; i < events.size(); i++) {
+        Event& event = events[i];
+        Entity enemy;
+        enemy.pos.x = (float)event.start_ticks / tickdiv;
+        enemy.pos.y = (float)event.note;
+        enemy.alive = false;
+        enemy.can_move = false;
+        enemy.type = track;
+        level.enemies.push_back(std::move(enemy));
     }
     return level;
 }
