@@ -361,11 +361,15 @@ std::string GetVoiceMessageName(uint8_t byte) {
 Level LoadLevelPackage(std::string const &name)
 {
     struct Event {
-        uint8_t track;
         uint8_t channel;
         uint8_t note;
         uint8_t velocity;
         int start_ticks;
+    };
+
+    struct Track {
+        std::string name;
+        std::vector<Event> events;
     };
 
     std::string working_dir = GetWorkingDirectory();
@@ -375,7 +379,7 @@ Level LoadLevelPackage(std::string const &name)
         throw std::runtime_error(std::format("Can't open package file {}", name));
     }
 
-    std::vector<Event> events;
+    std::vector<Track> tracks;
 
     std::println("#=== MIDI file: {}", name);
     
@@ -403,17 +407,16 @@ Level LoadLevelPackage(std::string const &name)
     std::println("NTracks: {}", ntracks);
     std::println("Tickdiv: {}", tickdiv);
 
-    uint8_t track = 0;
     for (int ic = 0; ic < ntracks; ic++) {
+        Track track;
+
         std::vector<uint8_t> header(header_size, 0);
         pkg.read(reinterpret_cast<char*>(header.data()), header_size);
         std::println("#--- Track ---");
-
-        track++;
-
+        
         std::string identifier(reinterpret_cast<char*>(header.data()), 4);
         std::println("Identifier: {}", identifier);
-
+        
         uint32_t chunklen = 0;
         for (int i = 0; i < 4; i++) {
             chunklen |= uint32_t(uint8_t(header[4 + i])) << (8 * (3 - i));
@@ -464,8 +467,14 @@ Level LoadLevelPackage(std::string const &name)
                 } while (byte & 0x80 && it != buffer.end());
                 std::println("Length: {}", length);
                 
-                // skip data for now
-                it += length;
+                if (msg == 0x03) {
+
+                }
+                else {
+                    // skip data for now
+                    it += length;
+                }
+
             }
             if (byte == 0xf0) {
                 std::println("Type: SysEx | {:02X}", byte);
@@ -529,12 +538,11 @@ Level LoadLevelPackage(std::string const &name)
                     std::println("Note: {}", note);
                     std::println("velocity: {}", velocity);
                     Event event;
-                    event.track = track;
                     event.channel = channel;
                     event.start_ticks = ticks;
                     event.note = note;
                     event.velocity = velocity;
-                    events.push_back(std::move(event));
+                    track.events.push_back(std::move(event));
                 }
                 else {
                     it += length;
@@ -547,17 +555,22 @@ Level LoadLevelPackage(std::string const &name)
             std::println();
             std::fflush(stdout);
         }
+        tracks.push_back(std::move(track));
     }
+
     Level level;
-    for (int i = 0; i < events.size(); i++) {
-        Event& event = events[i];
-        Entity enemy;
-        enemy.pos.x = (float)event.start_ticks / tickdiv;
-        enemy.pos.y = (float)event.note;
-        enemy.alive = false;
-        enemy.can_move = false;
-        enemy.type = track;
-        level.enemies.push_back(std::move(enemy));
+    for (int i = 0; i < tracks.size(); i++) {
+        Track& track = tracks[i];
+        for (int j = 0; j < track.events.size(); j++) {
+            Event& event = track.events[j];
+            Entity enemy;
+            enemy.pos.x = (float)event.start_ticks / tickdiv;
+            enemy.pos.y = (float)event.note;
+            enemy.alive = false;
+            enemy.can_move = false;
+            enemy.type = i;
+            level.enemies.push_back(std::move(enemy));
+        }
     }
     return level;
 }
