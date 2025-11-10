@@ -102,11 +102,12 @@ int main(void) {
     float screen_width = (float)GetScreenWidth();
     float screen_height = (float)GetScreenHeight();
 
-    Camera2D camera;
-    camera.offset = { 0.0f, 0.0f };
-    camera.rotation = 0.0f;
-    camera.target = { -screen_width, -screen_height * 0.5f };
-    camera.zoom = 1.0f;
+    Camera2D camera = {
+        .offset = { 0.0f, 0.0f },
+        .target = { -screen_width, -screen_height * 0.5f },
+        .rotation = 0.0f,
+        .zoom = 1.0f,
+    };
 
     Entity player = {
         .alive = true,
@@ -131,7 +132,7 @@ int main(void) {
     for (int i = 0; i < bullets.size(); i++) {
         Entity& entity = bullets[i];
         entity.alive = false;
-        entity.pos = { 0.0f, -50.0f };
+        entity.pos = { 0.0f, -999.0f };
     }
     
     bool is_paused = false;
@@ -170,6 +171,38 @@ int main(void) {
             float frame_time = GetFrameTime();
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
             
+            if (inputs.reset) {
+                is_paused = false;
+                show_debug_overlay = false;
+                can_progress = false;
+                cooldown_time = 0.4f;
+                alive_entities = 0;
+                active_entities = 0;
+                invincibility_time = 1.5f;
+                warmup_time = 3.0f;
+                player = {
+                    .alive = true,
+                    .can_move = true,
+                    .pos = { -screen_width * 0.75f, 0.0f },
+                    .velocity = { 360.0f, 360.0f },
+                };
+                for (auto& enemy : enemies) {
+                    enemy.alive = true;
+                    enemy.can_move = false;
+                    enemy.pos = { 0.0f, -999.0f};
+                }
+                for (Entity& entity : bullets) {
+                    entity.alive = false;
+                    entity.pos = { 0.0f, -999.0f };
+                }
+                camera = {
+                    .offset = { 0.0f, 0.0f },
+                    .target = { -screen_width, -screen_height * 0.5f },
+                    .rotation = 0.0f,
+                    .zoom = 1.0f,
+                };
+            }
+
             if (warmup_time > 0.0f) {
                 warmup_time -= frame_time;
                 if (warmup_time < 0.0f) {
@@ -178,13 +211,18 @@ int main(void) {
                 }
             }
 
-            cooldown_time -= frame_time;
-            if (cooldown_time <= 0.0f)
-                cooldown_time = 0.0f;
+            if (cooldown_time > 0.0f && warmup_time <= 0.0f) {
+                cooldown_time -= frame_time;
+                if (cooldown_time <= 0.0f) {
+                    cooldown_time = 0.0f;
+                }
+            }
 
-            invincibility_time -= frame_time;
-            if (invincibility_time <= 0.0f) {
-                invincibility_time = 0.0f;
+            if (invincibility_time > 0.0f && warmup_time <= 0.0f) {
+                invincibility_time -= frame_time;
+                if (invincibility_time <= 0.0f) {
+                    invincibility_time = 0.0f;
+                }
             }
 
             if (inputs.stop) {
