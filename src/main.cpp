@@ -32,6 +32,7 @@ struct Inputs {
     bool reset;
     float pan;
     bool stop;
+    bool debug_overlay;
 };
 
 Inputs GetInputs();
@@ -97,18 +98,20 @@ int main(void) {
     music.looping = true;
 
     PlayMusicStream(music);
+    
+    float screen_width = (float)GetScreenWidth();
+    float screen_height = (float)GetScreenHeight();
 
-    bool is_paused = false;
     Camera2D camera;
     camera.offset = { 0.0f, 0.0f };
     camera.rotation = 0.0f;
-    camera.target = { -400.0f, 0.0f };
+    camera.target = { -screen_width, -screen_height * 0.5f };
     camera.zoom = 1.0f;
 
     Entity player = {
         .alive = true,
         .can_move = true,
-        .pos = { -300.0f, 225.0f },
+        .pos = { -screen_width * 0.75f, 0.0f },
         .velocity = { 360.0f, 360.0f },
     };
 
@@ -118,7 +121,7 @@ int main(void) {
         Vector2& pos = spawn_pos[i];
         Entity& enemy = enemies[i];
         pos.x = enemy.pos.x * PIXEL_PER_UNIT;
-        pos.y = enemy.pos.y * 0.1f * PIXEL_PER_UNIT + GetScreenHeight() / 2;
+        pos.y = enemy.pos.y * 0.1f * PIXEL_PER_UNIT;
         enemy.alive = true;
         enemy.can_move = false;
         enemy.pos = pos;
@@ -131,6 +134,8 @@ int main(void) {
         entity.pos = { 0.0f, -50.0f };
     }
     
+    bool is_paused = false;
+    bool show_debug_overlay = false;
     bool can_progress = false;
     float cooldown_time = 0.4f;
     int alive_entities = 0;
@@ -147,11 +152,15 @@ int main(void) {
         
         Inputs inputs = GetInputs();
         
-        if (inputs.pause)
+        if (inputs.pause) {
             is_paused = !is_paused;
+        }
+        if (inputs.debug_overlay) {
+            show_debug_overlay = !show_debug_overlay;
+        }
 
-        float screen_width = (float)GetScreenWidth();
-        float screen_height = (float)GetScreenHeight();
+        screen_width = (float)GetScreenWidth();
+        screen_height = (float)GetScreenHeight();
         if (!is_paused)
         {
             float frame_time = GetFrameTime();
@@ -254,52 +263,63 @@ int main(void) {
                 for (int i = 0; i < enemies.size(); i++) {
                     Entity& enemy = enemies[i];
                     Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
-                    if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width)
+                    if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
                         continue;
-                    Color color;
+                    }
                     if (enemy.alive && enemy.can_move) { // Alive in bounds
+                        Color color;
                         if (enemy.type == 1) {
                             color = YELLOW;
                         }
                         else {
                             color = LIME;
                         }
+                        DrawEntity(enemy, { 20.0f, 20.0f }, color);
                     }
-                    else if (enemy.alive && !enemy.can_move) // Alive OOB
-                        color = GREEN;
-                    else if (!enemy.alive && enemy.can_move) // Dead in bound
-                        color = ORANGE;
-                    else if (!enemy.alive && enemy.can_move) // Dead OOB
-                        color = RED;
-                    DrawEntity(enemy, { 20.0f, 20.0f }, color);
+                    else if (show_debug_overlay) {
+                        Color color;
+                        if (enemy.alive && !enemy.can_move) { // Alive OOB
+                            color = GREEN;
+                        }
+                        else if (!enemy.alive && enemy.can_move) { // Dead in bound
+                            color = ORANGE;
+                        }
+                        else if (!enemy.alive && enemy.can_move) { // Dead OOB
+                            color = RED;
+                        }
+                        DrawEntity(enemy, { 20.0f, 20.0f }, color);
+                    }
                 }
                 for (int i = 0; i < bullets.size(); i++) {
                     Entity& bullet = bullets[i];
                     Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
-                    if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width)
+                    if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
                         continue;
-                    Color color;
-                    if (bullet.alive)
-                        color = PINK;
-                    else
-                        color = PURPLE;
-                    DrawEntity(bullet, { 10.0f, 5.0f }, color);
+                    }
+                    if (bullet.alive) {
+                        DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
+                    }
+                    else if (show_debug_overlay) {
+                        DrawEntity(bullet, { 10.0f, 5.0f }, PURPLE);
+                    }
                 }
                 Color player_color = invincibility_time <= 0.0f ? SKYBLUE : GRAY;
                 DrawEntity(player, { 30.0f , 30.0f }, player_color);
             EndMode2D();
-            DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
-            DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
             DrawRectangle(Rectangle(50, 50, screen_width - 100, screen_height - 100), RED);
-            DrawText(dyn_format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
-            DrawText(dyn_format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
-            DrawText(dyn_format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
-            DrawText(dyn_format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
-            DrawText(dyn_format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
-            DrawText(dyn_format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
-            DrawText(dyn_format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
-            DrawText(dyn_format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
-            DrawText(dyn_format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+            if (show_debug_overlay) {
+                DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
+                DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
+                DrawText(dyn_format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
+                DrawText(dyn_format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
+                DrawText(dyn_format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
+                DrawText(dyn_format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
+                DrawText(dyn_format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
+                DrawText(dyn_format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
+                DrawText(dyn_format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
+                DrawText(dyn_format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
+                DrawText(dyn_format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+            }
             if (is_paused) {
                 DrawRectangle(0, 0, (int)screen_width, (int)screen_height, Color{0, 0, 0, 125});
                 int width = MeasureText("Pause", 24);
@@ -387,6 +407,7 @@ Inputs GetInputs()
     inputs.fire = IsKeyDown(KEY_SPACE);
     inputs.reset = IsKeyPressed(KEY_R);
     inputs.stop = IsKeyPressed(KEY_I);
+    inputs.debug_overlay = IsKeyPressed(KEY_O);
     inputs.pan = 0.0f;
     if (IsKeyPressed(KEY_J) || IsKeyPressedRepeat(KEY_J))
         inputs.pan = -50.0f;
@@ -397,6 +418,7 @@ Inputs GetInputs()
         inputs.fire |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
         inputs.reset |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP);
         inputs.stop |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_DOWN);
+        inputs.debug_overlay |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_MIDDLE_LEFT);
         if (IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_LEFT))
             inputs.pan = -50.0f;
         if (IsGamepadButtonPressed(0, GAMEPAD_BUTTON_LEFT_FACE_RIGHT))
