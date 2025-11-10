@@ -3,6 +3,10 @@
 #include <string>
 #include <vector>
 
+#define MIDI_NOTE_MAX 127
+#define MIDI_NOTE_MIN 0
+#define MIDI_NOTE_DEF 64
+
 struct Event {
     uint8_t channel;
     uint8_t note;

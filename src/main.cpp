@@ -65,27 +65,19 @@ int main(void) {
             throw std::runtime_error(std::format("Error reading file: {}", filepath));
         }
         auto midi = LoadMidi(std::span<uint8_t const>(buffer));
-        float min_y = 999;
-        float max_y = 0;
         for (int i = 0; i < midi.tracks.size(); i++) {
             Track& track = midi.tracks[i];
             for (int j = 0; j < track.events.size(); j++) {
                 Event& event = track.events[j];
                 Entity enemy;
                 enemy.pos.x = (float)event.start_ticks / midi.tickdiv;
-                enemy.pos.y = (float)event.note;
+                enemy.pos.y = (float)event.note - MIDI_NOTE_DEF;
                 enemy.alive = false;
                 enemy.can_move = false;
                 enemy.type = i;
                 enemy.hp = i - 1;
                 level.enemies.push_back(std::move(enemy));
-                min_y = std::min(min_y, enemy.pos.y);
-                max_y = std::max(max_y, enemy.pos.y);
             }
-        }
-        float mid_y = (max_y + min_y) * 0.5f;
-        for (auto& enemy : level.enemies) {
-            enemy.pos.y -= mid_y;
         }
         std::println("Found {} enemies.", level.enemies.size());
         for (auto& enemy : level.enemies) {
@@ -325,24 +317,6 @@ int main(void) {
     return 0;
 }
 
-Rectangle WorldToScreen(Rectangle rect, Rectangle screen)
-{
-    float x = rect.x * PIXEL_PER_UNIT + screen.x + screen.width / 2;
-    float y = rect.y * PIXEL_PER_UNIT + screen.y + screen.height / 2;
-    float width = rect.width * PIXEL_PER_UNIT;
-    float height = rect.height * PIXEL_PER_UNIT;
-    return Rectangle(x, y, width, height);
-}
-
-Rectangle ScreenToWorld(Rectangle rect, Rectangle screen)
-{
-    float x = (rect.x - screen.x - screen.width / 2) / PIXEL_PER_UNIT;
-    float y = (rect.y - screen.y - screen.height / 2) / PIXEL_PER_UNIT;
-    float width = rect.width / PIXEL_PER_UNIT;
-    float height = rect.height / PIXEL_PER_UNIT;
-    return Rectangle(x, y, width, height);
-}
-
 Rectangle GetBoundingBox(float cx, float cy, float width, float height)
 {
     float x = cx - width * 0.5f;
@@ -371,28 +345,6 @@ void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
             bullet.velocity = velocity;
             break;
         }
-    }
-}
-
-std::string GetSystemMessageName(uint8_t byte) {
-    switch (byte)
-    {
-    case 0xf0: return "";
-    default: return "???";
-    }
-}
-
-std::string GetVoiceMessageName(uint8_t byte) {
-    switch (byte & 0xf0)
-    {
-    case 0x80: return "Note Off";
-    case 0x90: return "Note On";
-    case 0xA0: return "Polyphonic Pressure";
-    case 0xB0: return "Controller";
-    case 0xC0: return "Program Change";
-    case 0xD0: return "Channel Pressure";
-    case 0xE0: return "Pitch Bend";
-    default: return "???";
     }
 }
 
