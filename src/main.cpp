@@ -141,6 +141,7 @@ int main(void) {
     int alive_entities = 0;
     int active_entities = 0;
     float invincibility_time = 1.5f;
+    float warmup_time = 3.0f;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -154,6 +155,9 @@ int main(void) {
         
         if (inputs.pause) {
             is_paused = !is_paused;
+            if (!is_paused) {
+                warmup_time = 3.0f;
+            }
         }
         if (inputs.debug_overlay) {
             show_debug_overlay = !show_debug_overlay;
@@ -166,6 +170,14 @@ int main(void) {
             float frame_time = GetFrameTime();
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
             
+            if (warmup_time > 0.0f) {
+                warmup_time -= frame_time;
+                if (warmup_time < 0.0f) {
+                    warmup_time = 0.0f;
+                    can_progress = true;
+                }
+            }
+
             cooldown_time -= frame_time;
             if (cooldown_time <= 0.0f)
                 cooldown_time = 0.0f;
@@ -175,12 +187,14 @@ int main(void) {
                 invincibility_time = 0.0f;
             }
 
-            if (inputs.stop)
+            if (inputs.stop) {
                 can_progress = !can_progress;
+            }
             
             float progression = 0.0f;
-            if (can_progress)
+            if (can_progress && warmup_time <= 0.0f) {
                 progression = frame_time * 100.0f;
+            }
 
             camera.offset.x += inputs.pan;
             camera.target.x += progression;
@@ -319,6 +333,12 @@ int main(void) {
                 DrawText(dyn_format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
                 DrawText(dyn_format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
                 DrawText(dyn_format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+            }
+            if (warmup_time > 0.0f) {
+                auto rounded_time = (int)warmup_time;
+                auto text = rounded_time ? std::to_string(rounded_time) : "GO";
+                int width = MeasureText(text.c_str(), 50);
+                DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, 50, WHITE);
             }
             if (is_paused) {
                 DrawRectangle(0, 0, (int)screen_width, (int)screen_height, Color{0, 0, 0, 125});
