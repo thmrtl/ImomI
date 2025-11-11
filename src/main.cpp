@@ -98,13 +98,20 @@ int main(void) {
 
     InitAudioDevice();
 
-    Music music = LoadMusicStream("Assets/clocksuv_normal.xvag.wav");
+    Music music = LoadMusicStream("Assets/clockbnt_normal.xvag.wav");
     music.looping = true;
-
-    PlayMusicStream(music);
     
     float screen_width = (float)GetScreenWidth();
     float screen_height = (float)GetScreenHeight();
+
+    RenderTexture2D target = LoadRenderTexture((int)screen_width, (int)screen_height);
+    RenderTexture2D bufferA_target = LoadRenderTexture((int)screen_width, (int)screen_height);
+    RenderTexture2D bufferB_target = LoadRenderTexture((int)screen_width, (int)screen_height);
+    Shader threshold_shader = LoadShader(nullptr, "Assets/threshold.fs");
+    Shader blur_shader = LoadShader(nullptr, "Assets/blur.fs");
+    int blur_direction_loc = GetShaderLocation(blur_shader, "direction");
+
+    PlayMusicStream(music);
 
     Camera2D camera = {
         .offset = { 0.0f, 0.0f },
@@ -315,11 +322,8 @@ int main(void) {
             }
         }
 
-        BeginDrawing();
-            ClearBackground(BLACK);
-            DrawRectangleGradientH(0, 0, int(screen_width * 0.5f), int(screen_height), BLACK, DARKPURPLE);
-            DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
-            DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
+        BeginTextureMode(target);
+            ClearBackground(BLANK);
             BeginMode2D(camera);
                 for (int i = 0; i < enemies.size(); i++) {
                     Entity& enemy = enemies[i];
@@ -394,11 +398,85 @@ int main(void) {
                 int width = MeasureText(text.c_str(), 50);
                 DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, 50, WHITE);
             }
+        EndTextureMode();
+
+        BeginTextureMode(bufferA_target);
+            ClearBackground(BLANK);
+            BeginShaderMode(threshold_shader);
+                DrawTexturePro(
+                    target.texture,
+                    Rectangle{0, 0, screen_width, -screen_height},
+                    Rectangle{0, 0, screen_width, screen_height},
+                    Vector2{0.0f, 0.0f},
+                    0.0f,
+                    WHITE
+                );
+            EndShaderMode();
+        EndTextureMode();
+        
+        for (int i = 0; i < 5; i++) {
+            BeginTextureMode(bufferB_target);
+                BeginShaderMode(blur_shader);
+                    Vector2 blur_direction{1.0f / screen_width, 0.0f};
+                    SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
+                    DrawTexturePro(
+                        bufferA_target.texture,
+                        Rectangle{0, 0, screen_width, -screen_height},
+                        Rectangle{0, 0, screen_width, screen_height},
+                        Vector2{0.0f, 0.0f},
+                        0.0f,
+                        WHITE
+                    );
+                EndShaderMode();
+            EndTextureMode();
+
+            BeginTextureMode(bufferA_target);
+                BeginShaderMode(blur_shader);
+                    blur_direction = {0.0f, 1.0f / screen_height};
+                    SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
+                    DrawTexturePro(
+                        bufferB_target.texture,
+                        Rectangle{0, 0, screen_width, -screen_height},
+                        Rectangle{0, 0, screen_width, screen_height},
+                        Vector2{0.0f, 0.0f},
+                        0.0f,
+                        WHITE
+                    );
+                EndShaderMode();
+            EndTextureMode();
+        }
+
+        BeginDrawing();
+            ClearBackground(BLACK);
+            DrawRectangleGradientH(0, 0, int(screen_width * 0.5f), int(screen_height), BLACK, DARKPURPLE);
+            DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
+            DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
+            DrawTexturePro(
+                target.texture,
+                Rectangle{0, 0, screen_width, -screen_height},
+                Rectangle{0, 0, screen_width, screen_height},
+                Vector2{0.0f, 0.0f},
+                0.0f,
+                WHITE
+            );
+            BeginBlendMode(BLEND_ADDITIVE);
+                DrawTexturePro(
+                    bufferA_target.texture,
+                    Rectangle{0, 0, screen_width, -screen_height},
+                    Rectangle{0, 0, screen_width, screen_height},
+                    Vector2{0.0f, 0.0f},
+                    0.0f,
+                    WHITE
+                );
+            EndBlendMode();
+
             if (is_paused) {
                 DrawRectangle(0, 0, (int)screen_width, (int)screen_height, Color{0, 0, 0, 125});
                 int width = MeasureText("Pause", 24);
                 DrawText("Pause", ((int)screen_width - width) / 2, ((int)screen_height - 12) / 2, 25, WHITE);
             }
+
+            DrawFPS((int)screen_width - 100, (int)screen_height - 50);
         EndDrawing();
     }
 
