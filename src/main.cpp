@@ -197,7 +197,7 @@ int main(void) {
                 multiplicator = 1.0f;
                 player = {
                     .alive = true,
-                    .can_move = true,
+                    .can_move = false,
                     .pos = { -screen_width * 0.75f, 0.0f },
                     .velocity = { 360.0f, 360.0f },
                 };
@@ -220,10 +220,12 @@ int main(void) {
             }
 
             if (warmup_time > 0.0f) {
+                player.can_move = false;
                 warmup_time -= frame_time;
                 if (warmup_time < 0.0f) {
                     warmup_time = 0.0f;
                     can_progress = true;
+                    player.can_move = true;
                 }
             }
 
@@ -255,9 +257,11 @@ int main(void) {
             camera.target.x += progression;
             
             player.pos.x += progression;
-            player.pos.x += frame_time * player.velocity.x * inputs.dir.x;
-            player.pos.y += frame_time * player.velocity.y * inputs.dir.y;
 
+            if (player.can_move) {
+                player.pos.x += frame_time * player.velocity.x * inputs.dir.x;
+                player.pos.y += frame_time * player.velocity.y * inputs.dir.y;
+            }
             player.pos.x = Clamp(player.pos.x, camera.target.x, camera.target.x + screen_width);
             player.pos.y = Clamp(player.pos.y, camera.target.y, camera.target.y + screen_height);
 
@@ -307,7 +311,7 @@ int main(void) {
                             if (enemy.hp <= 0) {
                                 enemy.alive = false;
                                 alive_entities--;
-                                score += multiplicator * enemy.hp_max * 100;
+                                score += int(multiplicator * enemy.hp_max * 100);
                                 multiplicator += 0.1f;
                                 break;
                             }
