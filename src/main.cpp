@@ -154,6 +154,8 @@ int main(void) {
     int active_entities = 0;
     float invincibility_time = 1.5f;
     float warmup_time = 3.0f;
+    int score = 0;
+    float multiplicator = 1.0f;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -191,6 +193,8 @@ int main(void) {
                 active_entities = 0;
                 invincibility_time = 1.5f;
                 warmup_time = 3.0f;
+                score = 0;
+                multiplicator = 1.0f;
                 player = {
                     .alive = true,
                     .can_move = true,
@@ -290,6 +294,7 @@ int main(void) {
                 if (invincibility_time <= 0.0f && CheckCollisionRecs(player_rect, enemy_rect)) {
                     invincibility_time = 1.5f;
                     player.hp--;
+                    multiplicator = 1.0f;
                 }
 
                 for (int j = 0; j < bullets.size(); j++) {
@@ -302,6 +307,8 @@ int main(void) {
                             if (enemy.hp <= 0) {
                                 enemy.alive = false;
                                 alive_entities--;
+                                score += multiplicator * enemy.hp_max * 100;
+                                multiplicator += 0.1f;
                                 break;
                             }
                         }
@@ -379,6 +386,8 @@ int main(void) {
                     DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
                 }
             EndMode2D();
+            DrawText(std::format("{}", score).c_str(), 0, 0, 50, WHITE);
+            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 0, 50, 30, WHITE);
             if (show_debug_overlay) {
                 DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
                 DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
