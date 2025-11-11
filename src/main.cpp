@@ -23,6 +23,7 @@ struct Entity {
     Vector2 velocity;
     int type;
     int hp;
+    int hp_max;
 };
 
 struct Inputs {
@@ -45,6 +46,7 @@ template<typename... Args>
 std::string dyn_format(std::string_view rt_fmt_str, Args&&... args);
 
 struct Level {
+    float length;
     std::vector<Entity> enemies;
 };
 
@@ -76,13 +78,15 @@ int main(void) {
                 enemy.alive = false;
                 enemy.can_move = false;
                 enemy.type = i;
-                enemy.hp = i - 1;
+                enemy.hp = j % 2 + 1;
+                enemy.hp_max = i;
                 level.enemies.push_back(std::move(enemy));
             }
         }
+        level.length = (float)midi.ticklen / midi.tickdiv;
         std::println("Found {} enemies.", level.enemies.size());
         for (auto& enemy : level.enemies) {
-            std::println("Enemy: ({},{})", enemy.pos.x, enemy.pos.y);
+            std::println("Enemy: ({},{}), {}", enemy.pos.x, enemy.pos.y, enemy.hp);
         }
     }
     catch(std::exception& e) {
@@ -104,7 +108,7 @@ int main(void) {
 
     Camera2D camera = {
         .offset = { 0.0f, 0.0f },
-        .target = { -screen_width, -screen_height * 0.5f },
+        .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
         .rotation = 0.0f,
         .zoom = 1.0f,
     };
@@ -190,6 +194,7 @@ int main(void) {
                     enemy.alive = true;
                     enemy.can_move = false;
                     enemy.pos = { 0.0f, -999.0f};
+                    enemy.hp = enemy.hp_max;
                 }
                 for (Entity& entity : bullets) {
                     entity.alive = false;
@@ -233,6 +238,7 @@ int main(void) {
             if (can_progress && warmup_time <= 0.0f) {
                 progression = frame_time * 100.0f;
             }
+            progression = std::roundf(progression);
 
             camera.offset.x += inputs.pan;
             camera.target.x += progression;
@@ -241,8 +247,8 @@ int main(void) {
             player.pos.x += frame_time * player.velocity.x * inputs.dir.x;
             player.pos.y += frame_time * player.velocity.y * inputs.dir.y;
 
-            player.pos.x = Clamp(player.pos.x, camera.target.x + 50, camera.target.x + screen_width - 50);
-            player.pos.y = Clamp(player.pos.y, camera.target.y + 50, camera.target.y + screen_height - 50);
+            player.pos.x = Clamp(player.pos.x, camera.target.x, camera.target.x + screen_width);
+            player.pos.y = Clamp(player.pos.y, camera.target.y, camera.target.y + screen_height);
 
             Rectangle player_rect = GetBoundingBox(player.pos.x, player.pos.y, 30.0f, 30.0f);
 
@@ -260,14 +266,14 @@ int main(void) {
                 alive_entities++;
                 if (!enemy.can_move) {
                     Vector2& pos = spawn_pos[i];
-                    if (pos.x - 10.0f >= camera.target.x + screen_width - 50)
+                    if (pos.x - 10.0f >= camera.target.x + screen_width)
                         continue;
                     enemy.can_move = true;
                     enemy.pos = pos;
                 }
                 active_entities++;
 
-                if (enemy.pos.x <= camera.target.x + 50) {
+                if (enemy.pos.x <= camera.target.x) {
                     enemy.can_move = false;
                     active_entities--;
                     continue;
@@ -286,7 +292,7 @@ int main(void) {
                         if (CheckCollisionRecs(bullet_rect, enemy_rect)) {
                             bullet.alive = false;
                             enemy.hp--;
-                            if (enemy.hp) {
+                            if (enemy.hp <= 0) {
                                 enemy.alive = false;
                                 alive_entities--;
                                 break;
@@ -302,7 +308,7 @@ int main(void) {
                 if (bullet.alive) {
                     bullet.pos.x += frame_time * bullet.velocity.x;
                     bullet.pos.y += frame_time * bullet.velocity.y;
-                    if (bullet.pos.x - 5 >= camera.target.x + screen_width - 50 || bullet.pos.x + 5 <= camera.target.x + 50) {
+                    if (bullet.pos.x - 5 >= camera.target.x + screen_width || bullet.pos.x + 5 <= camera.target.x) {
                         bullet.alive = false;
                     }
                 }
@@ -318,15 +324,11 @@ int main(void) {
                     if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
                         continue;
                     }
+                    static Color colors[3] = { RED, SKYBLUE };
                     if (enemy.alive && enemy.can_move) { // Alive in bounds
-                        Color color;
-                        if (enemy.type == 1) {
-                            color = YELLOW;
+                        for (int j = 0; j < enemy.hp; j++) {
+                            DrawEntity(enemy, { 20.0f - j * 4, 20.0f - j * 4 }, colors[enemy.hp - 1 - j]);
                         }
-                        else {
-                            color = LIME;
-                        }
-                        DrawEntity(enemy, { 20.0f, 20.0f }, color);
                     }
                     else if (show_debug_overlay) {
                         Color color;
@@ -339,7 +341,8 @@ int main(void) {
                         else if (!enemy.alive && enemy.can_move) { // Dead OOB
                             color = RED;
                         }
-                        DrawEntity(enemy, { 20.0f, 20.0f }, color);
+                        Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
+                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
                     }
                 }
                 for (int i = 0; i < bullets.size(); i++) {
@@ -352,13 +355,23 @@ int main(void) {
                         DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
                     }
                     else if (show_debug_overlay) {
-                        DrawEntity(bullet, { 10.0f, 5.0f }, PURPLE);
+                        Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
+                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
                     }
                 }
-                Color player_color = invincibility_time <= 0.0f ? SKYBLUE : GRAY;
-                DrawEntity(player, { 30.0f , 30.0f }, player_color);
+                if (invincibility_time > 0.0f) {
+                    DrawEntity(player, { 30.0f , 30.0f }, GRAY);
+                }
+                else {
+                    DrawEntity(player, { 30.0f , 30.0f }, SKYBLUE);
+                    DrawEntity(player, { 26.0f , 26.0f }, GRAY);
+                }
+                if (show_debug_overlay){
+                    DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
+                    DrawLine(0, (int)camera.target.y, 0, (int)(screen_height + camera.target.y), WHITE);
+                    DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
+                }
             EndMode2D();
-            DrawRectangle(Rectangle(50, 50, screen_width - 100, screen_height - 100), RED);
             if (show_debug_overlay) {
                 DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
                 DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
@@ -410,7 +423,7 @@ void DrawRectangle(Rectangle rect, Color color)
 void DrawEntity(Entity const& entity, Vector2 size, Color color)
 {
     Rectangle rect = GetBoundingBox(entity.pos.x, entity.pos.y, size.x, size.y);
-    DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
+    DrawRectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
 }
 
 void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)

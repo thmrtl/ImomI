@@ -101,6 +101,9 @@ Midi LoadMidi(std::span<uint8_t const> data)
                         track.name = std::move(track_or_seq_name);
                     }
                 }
+                else if (msg == 0x2f) {
+                    midi.ticklen = ticks;
+                }
                 else { // Skip data
                     pos += length;
                 }

@@ -23,6 +23,7 @@ struct Midi {
     int16_t format;
     int16_t ntracks;
     int16_t tickdiv;
+    int32_t ticklen;
     std::string sequence_name;
     std::vector<Track> tracks;
 };
