@@ -202,7 +202,7 @@ int main(void) {
                 }
                 camera = {
                     .offset = { 0.0f, 0.0f },
-                    .target = { -screen_width, -screen_height * 0.5f },
+                    .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
                     .rotation = 0.0f,
                     .zoom = 1.0f,
                 };
@@ -317,6 +317,9 @@ int main(void) {
 
         BeginDrawing();
             ClearBackground(BLACK);
+            DrawRectangleGradientH(0, 0, int(screen_width * 0.5f), int(screen_height), BLACK, DARKPURPLE);
+            DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
+            DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
             BeginMode2D(camera);
                 for (int i = 0; i < enemies.size(); i++) {
                     Entity& enemy = enemies[i];
