@@ -378,11 +378,11 @@ int main(void) {
                     }
                 }
                 if (invincibility_time > 0.0f) {
-                    DrawEntity(player, { 30.0f , 30.0f }, GRAY);
+                    DrawEntity(player, { 30.0f , 30.0f }, DARKGRAY);
                 }
                 else {
                     DrawEntity(player, { 30.0f , 30.0f }, SKYBLUE);
-                    DrawEntity(player, { 26.0f , 26.0f }, GRAY);
+                    DrawEntity(player, { 26.0f , 26.0f }, DARKGRAY);
                 }
                 if (show_debug_overlay){
                     DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
