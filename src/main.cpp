@@ -11,12 +11,9 @@
 #define MAX_LEVEL_FILE_SIZE 100 * 1024 * 1024
 
 #define INVINCIBILITY_TIME_MAX 1.5f
+#define ENEMY_SHIELD_TIME_MAX 1.0f
 
-enum class Screen {
-    Title,
-    Game,
-    Credits,
-};
+#define ENEMY_SHIELD 2
 
 struct Entity {
     bool alive;
@@ -26,6 +23,7 @@ struct Entity {
     int type;
     int hp;
     int hp_max;
+    float last_hit_time;
 };
 
 struct Inputs {
@@ -38,19 +36,16 @@ struct Inputs {
     bool debug_overlay;
 };
 
+struct Level {
+    float length;
+    std::vector<Entity> enemies;
+};
+
 Inputs GetInputs();
 Rectangle GetBoundingBox(float cx, float cy, float width, float height);
 void DrawRectangle(Rectangle rect, Color color);
 void DrawEntity(Entity const& entity, Vector2 size, Color color);
 void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity);
-
-template<typename... Args>
-std::string dyn_format(std::string_view rt_fmt_str, Args&&... args);
-
-struct Level {
-    float length;
-    std::vector<Entity> enemies;
-};
 
 int main(void) {
     Level level;
@@ -80,8 +75,9 @@ int main(void) {
                 enemy.alive = false;
                 enemy.can_move = false;
                 enemy.type = i;
-                enemy.hp = i;
-                enemy.hp_max = i;
+                enemy.hp = 1;
+                enemy.hp_max = 1;
+                enemy.last_hit_time = 0.0f;
                 level.enemies.push_back(std::move(enemy));
             }
         }
@@ -178,6 +174,7 @@ int main(void) {
         strike_time = 0.0f;
     };
 
+    float elapsed_time = 0.0f;
     RestartLevel();
     while (!WindowShouldClose()) {
         if (is_paused) {
@@ -205,6 +202,7 @@ int main(void) {
         if (!is_paused)
         {
             float frame_time = GetFrameTime();
+            elapsed_time += frame_time;
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
 
             if (inputs.reset) {
@@ -220,6 +218,7 @@ int main(void) {
                     enemy.can_move = false;
                     enemy.pos = { 0.0f, -999.0f};
                     enemy.hp = enemy.hp_max;
+                    enemy.last_hit_time = 0.0f;
                 }
                 for (Entity& entity : bullets) {
                     entity.alive = false;
@@ -342,14 +341,19 @@ int main(void) {
                         Rectangle bullet_rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
                         if (CheckCollisionRecs(bullet_rect, enemy_rect)) {
                             bullet.alive = false;
-                            enemy.hp--;
-                            if (enemy.hp <= 0) {
-                                enemy.alive = false;
-                                alive_entities--;
-                                score += int(multiplicator * enemy.hp_max * 100);
-                                multiplicator += 0.1f;
-                                strike_time = 0.3f;
-                                break;
+                            if (enemy.type == ENEMY_SHIELD && elapsed_time - enemy.last_hit_time >= ENEMY_SHIELD_TIME_MAX) {
+                                enemy.last_hit_time = elapsed_time;
+                            }
+                            else {
+                                enemy.hp--;
+                                if (enemy.hp <= 0) {
+                                    enemy.alive = false;
+                                    alive_entities--;
+                                    score += int(multiplicator * enemy.hp_max * 100);
+                                    multiplicator += 0.1f;
+                                    strike_time = 0.3f;
+                                    break;
+                                }
                             }
                         }
                     }
@@ -392,10 +396,21 @@ int main(void) {
                     if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
                         continue;
                     }
-                    static Color colors[3] = { RED, SKYBLUE };
                     if (enemy.alive && enemy.can_move) { // Alive in bounds
-                        for (int j = 0; j < enemy.hp; j++) {
-                            DrawEntity(enemy, { 20.0f - j * 4, 20.0f - j * 4 }, colors[enemy.hp - 1 - j]);
+                        if (enemy.type == ENEMY_SHIELD) {
+                            float shield_time = (elapsed_time - enemy.last_hit_time) / ENEMY_SHIELD_TIME_MAX;
+                            if (shield_time <= 1.0f) {
+                                float shield_size = shield_time * 20.0f;
+                                DrawEntity(enemy, { 20.0f , 20.0f }, RED);
+                                DrawEntity(enemy, { shield_size , shield_size }, SKYBLUE);
+                            }
+                            else {
+                                DrawEntity(enemy, { 20.0f , 20.0f }, SKYBLUE);
+                                DrawEntity(enemy, { 16.0f , 16.0f }, RED);
+                            }
+                        }
+                        else {
+                            DrawEntity(enemy, { 20.0f , 20.0f }, RED);
                         }
                     }
                     else if (show_debug_overlay) {
@@ -445,17 +460,17 @@ int main(void) {
             }
             DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
             if (show_debug_overlay) {
-                DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
-                DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
-                DrawText(dyn_format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
-                DrawText(dyn_format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
-                DrawText(dyn_format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
-                DrawText(dyn_format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
-                DrawText(dyn_format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
-                DrawText(dyn_format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
-                DrawText(dyn_format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
-                DrawText(dyn_format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
-                DrawText(dyn_format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+                DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
+                DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
+                DrawText(std::format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
+                DrawText(std::format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
+                DrawText(std::format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
+                DrawText(std::format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
+                DrawText(std::format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
+                DrawText(std::format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
+                DrawText(std::format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
+                DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
+                DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
             }
             if (warmup_time > 0.0f) {
                 auto rounded_time = (int)warmup_time;
@@ -594,12 +609,6 @@ void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
             break;
         }
     }
-}
-
-template<typename... Args>
-std::string dyn_format(std::string_view rt_fmt_str, Args&&... args)
-{
-    return std::vformat(rt_fmt_str, std::make_format_args(args...));
 }
 
 Vector2 GetInputDir()
