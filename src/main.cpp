@@ -494,6 +494,11 @@ int main(void) {
     }
 
     UnloadMusicStream(music);
+    UnloadRenderTexture(target);
+    UnloadRenderTexture(bufferA_target);
+    UnloadRenderTexture(bufferB_target);
+    UnloadShader(threshold_shader);
+    UnloadShader(blur_shader);
 
     CloseAudioDevice();
 
