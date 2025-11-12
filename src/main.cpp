@@ -10,6 +10,8 @@
 #define PIXEL_PER_UNIT 100
 #define MAX_LEVEL_FILE_SIZE 100 * 1024 * 1024
 
+#define INVINCIBILITY_TIME_MAX 1.5f
+
 enum class Screen {
     Title,
     Game,
@@ -145,6 +147,10 @@ int main(void) {
         entity.alive = false;
         entity.pos = { 0.0f, -999.0f };
     }
+
+    Vector2 tail[4]{player.pos};
+    int itail = 0;
+    float tail_time = 0.1f;
     
     bool is_paused = false;
     bool show_debug_overlay = false;
@@ -152,14 +158,27 @@ int main(void) {
     float cooldown_time = 0.4f;
     int alive_entities = 0;
     int active_entities = 0;
-    float invincibility_time = 1.5f;
+    float invincibility_time = INVINCIBILITY_TIME_MAX;
     float warmup_time = 3.1f;
     int score = 0;
     float multiplicator = 1.0f;
     float strike_time = 0.0f;
-    Vector2 tail[4]{player.pos};
-    int itail = 0;
-    float tail_time = 0.1f;
+
+    auto RestartLevel = [&]{
+        is_paused = false;
+        show_debug_overlay = false;
+        can_progress = false;
+        cooldown_time = 0.4f;
+        alive_entities = 0;
+        active_entities = 0;
+        invincibility_time = INVINCIBILITY_TIME_MAX;
+        warmup_time = 3.0f;
+        score = 0;
+        multiplicator = 1.0f;
+        strike_time = 0.0f;
+    };
+
+    RestartLevel();
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -189,17 +208,7 @@ int main(void) {
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
 
             if (inputs.reset) {
-                is_paused = false;
-                show_debug_overlay = false;
-                can_progress = false;
-                cooldown_time = 0.4f;
-                alive_entities = 0;
-                active_entities = 0;
-                invincibility_time = 1.5f;
-                warmup_time = 3.0f;
-                score = 0;
-                multiplicator = 1.0f;
-                strike_time = 0.0f;
+                RestartLevel();
                 player = {
                     .alive = true,
                     .can_move = false,
@@ -321,7 +330,7 @@ int main(void) {
 
                 Rectangle enemy_rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
                 if (invincibility_time <= 0.0f && CheckCollisionRecs(player_rect, enemy_rect)) {
-                    invincibility_time = 1.5f;
+                    invincibility_time = INVINCIBILITY_TIME_MAX;
                     player.hp--;
                     multiplicator = 1.0f;
                     strike_time = 0.3f;
@@ -411,7 +420,9 @@ int main(void) {
                     DrawRectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Color{255, 255, 255, 125});
                 }
                 if (invincibility_time > 0.0f) {
+                    float shield_size = 30.0f - invincibility_time / INVINCIBILITY_TIME_MAX * 30.0f;
                     DrawEntity(player, { 30.0f , 30.0f }, DARKGRAY);
+                    DrawEntity(player, { shield_size , shield_size }, SKYBLUE);
                 }
                 else {
                     DrawEntity(player, { 30.0f , 30.0f }, SKYBLUE);
