@@ -363,6 +363,20 @@ int main(void) {
         BeginTextureMode(target);
             ClearBackground(BLANK);
             BeginMode2D(camera);
+                for (int i = 0; i < bullets.size(); i++) {
+                    Entity& bullet = bullets[i];
+                    Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
+                    if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
+                        continue;
+                    }
+                    if (bullet.alive) {
+                        DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
+                    }
+                    else if (show_debug_overlay) {
+                        Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
+                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
+                    }
+                }
                 for (int i = 0; i < enemies.size(); i++) {
                     Entity& enemy = enemies[i];
                     Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
@@ -388,20 +402,6 @@ int main(void) {
                         }
                         Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
                         DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
-                    }
-                }
-                for (int i = 0; i < bullets.size(); i++) {
-                    Entity& bullet = bullets[i];
-                    Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
-                    if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
-                        continue;
-                    }
-                    if (bullet.alive) {
-                        DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
-                    }
-                    else if (show_debug_overlay) {
-                        Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
-                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
                     }
                 }
                 for (int i = 0; i < 4; i++) {
