@@ -104,13 +104,17 @@ int main(void) {
     
     float screen_width = (float)GetScreenWidth();
     float screen_height = (float)GetScreenHeight();
+    Vector2 resolution{screen_width, screen_height};
 
     RenderTexture2D target = LoadRenderTexture((int)screen_width, (int)screen_height);
     RenderTexture2D bufferA_target = LoadRenderTexture((int)screen_width, (int)screen_height);
     RenderTexture2D bufferB_target = LoadRenderTexture((int)screen_width, (int)screen_height);
     Shader threshold_shader = LoadShader(nullptr, "Assets/threshold.fs");
     Shader blur_shader = LoadShader(nullptr, "Assets/blur.fs");
+    Shader crt_shader = LoadShader(nullptr, "Assets/crt.fs");
     int blur_direction_loc = GetShaderLocation(blur_shader, "direction");
+    int crt_resolution_loc = GetShaderLocation(crt_shader, "resolution");
+    SetShaderValue(crt_shader, crt_resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
 
     PlayMusicStream(music);
 
@@ -534,8 +538,8 @@ int main(void) {
             EndTextureMode();
         }
 
-        BeginDrawing();
-            ClearBackground(BLACK);
+        BeginTextureMode(bufferB_target);
+            ClearBackground(BLANK);
             DrawRectangleGradientH(0, 0, int(screen_width * 0.1f), int(screen_height), DARKPURPLE, BLACK);
             DrawRectangleGradientH(int(screen_width * 0.1f), 0, int(screen_width * 0.4f), int(screen_height), BLACK, DARKPURPLE);
             DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
@@ -566,6 +570,20 @@ int main(void) {
             }
 
             DrawFPS((int)screen_width - 100, (int)screen_height - 50);
+        EndTextureMode();
+
+        BeginDrawing();
+            ClearBackground(BLACK);
+            BeginShaderMode(crt_shader);
+                DrawTexturePro(
+                    bufferB_target.texture,
+                    Rectangle{0, 0, screen_width, -screen_height},
+                    Rectangle{0, 0, screen_width, screen_height},
+                    Vector2{0.0f, 0.0f},
+                    0.0f,
+                    WHITE
+                );
+            EndShaderMode();
         EndDrawing();
     }
 
