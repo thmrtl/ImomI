@@ -308,7 +308,7 @@ int main(void) {
                     invincibility_time = 1.5f;
                     player.hp--;
                     multiplicator = 1.0f;
-                    strike_time = 0.0f;
+                    strike_time = 0.3f;
                 }
 
                 for (int j = 0; j < bullets.size(); j++) {
@@ -401,7 +401,7 @@ int main(void) {
                     DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
                 }
             EndMode2D();
-            DrawText(std::format("{}", score).c_str(), 0, 0, 50, WHITE);
+            DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
             int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
             Color score_color;
             if (multiplicator < 4.0f) {
@@ -410,7 +410,7 @@ int main(void) {
             else {
                 score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
             }
-            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 0, 50, multi_font_size, score_color);
+            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
             if (show_debug_overlay) {
                 DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
                 DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
@@ -454,7 +454,7 @@ int main(void) {
         for (int i = 0; i < 5; i++) {
             BeginTextureMode(bufferB_target);
                 BeginShaderMode(blur_shader);
-                    Vector2 blur_direction{1.0f / screen_width, 0.0f};
+                    Vector2 blur_direction{1.5f / screen_width, 0.0f};
                     SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
                     DrawTexturePro(
                         bufferA_target.texture,
@@ -469,7 +469,7 @@ int main(void) {
 
             BeginTextureMode(bufferA_target);
                 BeginShaderMode(blur_shader);
-                    blur_direction = {0.0f, 1.0f / screen_height};
+                    blur_direction = {0.0f, 1.5f / screen_height};
                     SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
                     DrawTexturePro(
                         bufferB_target.texture,
@@ -486,6 +486,7 @@ int main(void) {
         BeginDrawing();
             ClearBackground(BLACK);
             DrawRectangleGradientH(0, 0, int(screen_width * 0.5f), int(screen_height), BLACK, DARKPURPLE);
+            DrawRectangleGradientH(0, 0, int(screen_width * 0.1f), int(screen_height), DARKPURPLE, BLACK);
             DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
             DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
             DrawTexturePro(
