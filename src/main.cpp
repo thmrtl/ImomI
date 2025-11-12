@@ -10,8 +10,11 @@
 #define PIXEL_PER_UNIT 100
 #define MAX_LEVEL_FILE_SIZE 100 * 1024 * 1024
 
+#define WARMUP_TIME_MAX 3.1f
 #define INVINCIBILITY_TIME_MAX 1.5f
 #define ENEMY_SHIELD_TIME_MAX 1.0f
+#define MULTIPLICATOR_MIN 1.0f
+#define TAIL_TIME_DEF 0.1f
 
 #define ENEMY_SHIELD 2
 
@@ -146,7 +149,7 @@ int main(void) {
 
     Vector2 tail[4]{player.pos};
     int itail = 0;
-    float tail_time = 0.1f;
+    float tail_time = TAIL_TIME_DEF;
     
     bool is_paused = false;
     bool show_debug_overlay = false;
@@ -155,9 +158,9 @@ int main(void) {
     int alive_entities = 0;
     int active_entities = 0;
     float invincibility_time = INVINCIBILITY_TIME_MAX;
-    float warmup_time = 3.1f;
+    float warmup_time = WARMUP_TIME_MAX;
     int score = 0;
-    float multiplicator = 1.0f;
+    float multiplicator = MULTIPLICATOR_MIN;
     float strike_time = 0.0f;
 
     auto RestartLevel = [&]{
@@ -168,10 +171,33 @@ int main(void) {
         alive_entities = 0;
         active_entities = 0;
         invincibility_time = INVINCIBILITY_TIME_MAX;
-        warmup_time = 3.0f;
+        warmup_time = WARMUP_TIME_MAX;
         score = 0;
-        multiplicator = 1.0f;
+        multiplicator = MULTIPLICATOR_MIN;
         strike_time = 0.0f;
+        player = {
+            .alive = true,
+            .can_move = false,
+            .pos = { -screen_width * 0.75f, 0.0f },
+            .velocity = { 360.0f, 360.0f },
+        };
+        for (auto& enemy : enemies) {
+            enemy.alive = true;
+            enemy.can_move = false;
+            enemy.pos = { 0.0f, -999.0f};
+            enemy.hp = enemy.hp_max;
+            enemy.last_hit_time = 0.0f;
+        }
+        for (Entity& entity : bullets) {
+            entity.alive = false;
+            entity.pos = { 0.0f, -999.0f };
+        }
+        camera = {
+            .offset = { 0.0f, 0.0f },
+            .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
+            .rotation = 0.0f,
+            .zoom = 1.0f,
+        };
     };
 
     float elapsed_time = 0.0f;
@@ -207,29 +233,6 @@ int main(void) {
 
             if (inputs.reset) {
                 RestartLevel();
-                player = {
-                    .alive = true,
-                    .can_move = false,
-                    .pos = { -screen_width * 0.75f, 0.0f },
-                    .velocity = { 360.0f, 360.0f },
-                };
-                for (auto& enemy : enemies) {
-                    enemy.alive = true;
-                    enemy.can_move = false;
-                    enemy.pos = { 0.0f, -999.0f};
-                    enemy.hp = enemy.hp_max;
-                    enemy.last_hit_time = 0.0f;
-                }
-                for (Entity& entity : bullets) {
-                    entity.alive = false;
-                    entity.pos = { 0.0f, -999.0f };
-                }
-                camera = {
-                    .offset = { 0.0f, 0.0f },
-                    .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
-                    .rotation = 0.0f,
-                    .zoom = 1.0f,
-                };
             }
 
             if (warmup_time > 0.0f) {
@@ -288,7 +291,7 @@ int main(void) {
             if (tail_time > 0.0f) {
                 tail_time -= frame_time;
                 if (tail_time <= 0.0f) {
-                    tail_time = 0.1f;
+                    tail_time = TAIL_TIME_DEF;
                     tail[itail] = player.pos;
                     itail = (itail + 1) % 4;
                 }
@@ -331,7 +334,7 @@ int main(void) {
                 if (invincibility_time <= 0.0f && CheckCollisionRecs(player_rect, enemy_rect)) {
                     invincibility_time = INVINCIBILITY_TIME_MAX;
                     player.hp--;
-                    multiplicator = 1.0f;
+                    multiplicator = MULTIPLICATOR_MIN;
                     strike_time = 0.3f;
                 }
 
