@@ -153,9 +153,10 @@ int main(void) {
     int alive_entities = 0;
     int active_entities = 0;
     float invincibility_time = 1.5f;
-    float warmup_time = 3.0f;
+    float warmup_time = 3.1f;
     int score = 0;
     float multiplicator = 1.0f;
+    float strike_time = 0.0f;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -195,6 +196,7 @@ int main(void) {
                 warmup_time = 3.0f;
                 score = 0;
                 multiplicator = 1.0f;
+                strike_time = 0.0f;
                 player = {
                     .alive = true,
                     .can_move = false,
@@ -240,6 +242,13 @@ int main(void) {
                 invincibility_time -= frame_time;
                 if (invincibility_time <= 0.0f) {
                     invincibility_time = 0.0f;
+                }
+            }
+
+            if (strike_time > 0.0f && warmup_time <= 0.0f) {
+                strike_time -= frame_time;
+                if (strike_time <= 0.0f) {
+                    strike_time = 0.0f;
                 }
             }
 
@@ -299,6 +308,7 @@ int main(void) {
                     invincibility_time = 1.5f;
                     player.hp--;
                     multiplicator = 1.0f;
+                    strike_time = 0.0f;
                 }
 
                 for (int j = 0; j < bullets.size(); j++) {
@@ -313,6 +323,7 @@ int main(void) {
                                 alive_entities--;
                                 score += int(multiplicator * enemy.hp_max * 100);
                                 multiplicator += 0.1f;
+                                strike_time = 0.3f;
                                 break;
                             }
                         }
@@ -391,7 +402,15 @@ int main(void) {
                 }
             EndMode2D();
             DrawText(std::format("{}", score).c_str(), 0, 0, 50, WHITE);
-            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 0, 50, 30, WHITE);
+            int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
+            Color score_color;
+            if (multiplicator < 4.0f) {
+                score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+            }
+            else {
+                score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
+            }
+            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 0, 50, multi_font_size, score_color);
             if (show_debug_overlay) {
                 DrawText(dyn_format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
                 DrawText(dyn_format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
@@ -408,8 +427,13 @@ int main(void) {
             if (warmup_time > 0.0f) {
                 auto rounded_time = (int)warmup_time;
                 auto text = rounded_time ? std::to_string(rounded_time) : "GO";
-                int width = MeasureText(text.c_str(), 50);
-                DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, 50, WHITE);
+                auto subtime = Wrap(warmup_time, 0.0f, 1.0f);
+                auto font_size = int(std::round(20 * subtime + 50));
+                int width = MeasureText(text.c_str(), font_size);
+                DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, font_size, WHITE);
+                auto subtime_text = std::format("{:.2f}", subtime);
+                width = MeasureText(subtime_text.c_str(), 30);
+                DrawText(subtime_text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4 - 30, 30, WHITE);
             }
         EndTextureMode();
 
