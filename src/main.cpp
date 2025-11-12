@@ -78,7 +78,7 @@ int main(void) {
                 enemy.alive = false;
                 enemy.can_move = false;
                 enemy.type = i;
-                enemy.hp = j % 2 + 1;
+                enemy.hp = i;
                 enemy.hp_max = i;
                 level.enemies.push_back(std::move(enemy));
             }
@@ -157,6 +157,9 @@ int main(void) {
     int score = 0;
     float multiplicator = 1.0f;
     float strike_time = 0.0f;
+    Vector2 tail[4]{player.pos};
+    int itail = 0;
+    float tail_time = 0.1f;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -184,7 +187,7 @@ int main(void) {
         {
             float frame_time = GetFrameTime();
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
-            
+
             if (inputs.reset) {
                 is_paused = false;
                 show_debug_overlay = false;
@@ -273,6 +276,19 @@ int main(void) {
             }
             player.pos.x = Clamp(player.pos.x, camera.target.x, camera.target.x + screen_width);
             player.pos.y = Clamp(player.pos.y, camera.target.y, camera.target.y + screen_height);
+            
+            if (tail_time > 0.0f) {
+                tail_time -= frame_time;
+                if (tail_time <= 0.0f) {
+                    tail_time = 0.1f;
+                    tail[itail] = player.pos;
+                    itail = (itail + 1) % 4;
+                }
+            }
+
+            for (int i = 0; i < 4; i++) {
+                tail[i].x += progression;
+            }
 
             Rectangle player_rect = GetBoundingBox(player.pos.x, player.pos.y, 30.0f, 30.0f);
 
@@ -387,6 +403,12 @@ int main(void) {
                         Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
                         DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
                     }
+                }
+                for (int i = 0; i < 4; i++) {
+                    auto j = (i + itail) % 4;
+                    auto size = 14.0f + (i + 1) * 4.0f;
+                    Rectangle rect = GetBoundingBox(tail[j].x, tail[j].y, size, size);
+                    DrawRectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Color{255, 255, 255, 125});
                 }
                 if (invincibility_time > 0.0f) {
                     DrawEntity(player, { 30.0f , 30.0f }, DARKGRAY);
