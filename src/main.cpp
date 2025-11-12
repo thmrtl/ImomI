@@ -485,8 +485,8 @@ int main(void) {
 
         BeginDrawing();
             ClearBackground(BLACK);
-            DrawRectangleGradientH(0, 0, int(screen_width * 0.5f), int(screen_height), BLACK, DARKPURPLE);
             DrawRectangleGradientH(0, 0, int(screen_width * 0.1f), int(screen_height), DARKPURPLE, BLACK);
+            DrawRectangleGradientH(int(screen_width * 0.1f), 0, int(screen_width * 0.4f), int(screen_height), BLACK, DARKPURPLE);
             DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
             DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
             DrawTexturePro(
