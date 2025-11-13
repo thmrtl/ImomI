@@ -495,9 +495,14 @@ int main(void) {
             if (just_booted) {
                 std::string press_start = "PRESS START";
                 auto width = MeasureText(press_start.c_str(), 50);
-                DrawText(press_start.c_str(), int(bkg_markers[3].x - width * 0.5f), int((screen_height - 50) * 0.5f), 50, WHITE);
+                DrawText(press_start.c_str(), int((screen_width - width) * 0.5f), int((screen_height - 50) * 0.5f), 50, WHITE);
             }
             else {
+                if (abs(camera.target.x) > level.length * PIXEL_PER_UNIT) {
+                    std::string retry_text = "PRESS R TO RETRY";
+                    auto width = MeasureText(retry_text.c_str(), 40);
+                    DrawText(retry_text.c_str(), int((screen_width - width) * 0.5f), int(screen_height * 0.75f), 40, WHITE);
+                }
                 DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
                 int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
                 Color score_color;
