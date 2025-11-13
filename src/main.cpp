@@ -155,6 +155,18 @@ int main(void) {
     int itail = 0;
     float tail_time = TAIL_TIME_DEF;
     
+    struct {
+        float x0;
+        float x;
+        float v;
+        int dir;
+        float limit;
+    } bkg_markers[] = {
+        { screen_width * 0.2f, screen_width * 0.2f, 20.0f, 1, 50.0f },
+        { screen_width * 0.5f, screen_width * 0.5f, 20.0f, -1, 50.0f },
+        { screen_width * 0.85f, screen_width * 0.85f, 20.0f, 1, 50.0f },
+    };
+    
     bool is_paused = false;
     bool show_debug_overlay = false;
     bool can_progress = false;
@@ -538,12 +550,29 @@ int main(void) {
             EndTextureMode();
         }
 
+        float frame_time = GetFrameTime();
+        for (int i = 0; i < 3; i++) {
+            auto& marker = bkg_markers[i];
+            marker.x += marker.dir * marker.v * frame_time;
+            if (abs(marker.x - marker.x0) > marker.limit) {
+                marker.dir *= -1;
+                marker.limit = float(GetRandomValue(20, 50));
+                marker.v = float(GetRandomValue(10, 20));
+                Clamp(marker.x, marker.x0 - marker.limit, marker.x0 + marker.limit);
+            }
+        }
+
         BeginTextureMode(bufferB_target);
             ClearBackground(BLANK);
-            DrawRectangleGradientH(0, 0, int(screen_width * 0.1f), int(screen_height), DARKPURPLE, BLACK);
-            DrawRectangleGradientH(int(screen_width * 0.1f), 0, int(screen_width * 0.4f), int(screen_height), BLACK, DARKPURPLE);
-            DrawRectangle(int(screen_width * 0.5f), 0, int(screen_width * 0.35f), int(screen_height), DARKPURPLE);
-            DrawRectangleGradientH(int(screen_width * 0.85f), 0, int(screen_width * 0.15f), int(screen_height), DARKPURPLE, PURPLE);
+            DrawRectangleGradientH(0, 0, int(bkg_markers[0].x), int(screen_height), DARKPURPLE, BLACK);
+            DrawRectangleGradientH(int(bkg_markers[0].x), 0, int(bkg_markers[1].x - bkg_markers[0].x + 1), int(screen_height), BLACK, DARKPURPLE);
+            DrawRectangle(int(bkg_markers[1].x), 0, int(bkg_markers[2].x - bkg_markers[1].x + 1), int(screen_height), DARKPURPLE);
+            DrawRectangleGradientH(int(bkg_markers[2].x), 0, int(screen_width - bkg_markers[2].x + 1), int(screen_height), DARKPURPLE, PURPLE);
+            if (show_debug_overlay) {
+                DrawLine(int(bkg_markers[0].x), 0, int(bkg_markers[0].x), int(screen_height), PINK);
+                DrawLine(int(bkg_markers[1].x), 0, int(bkg_markers[1].x), int(screen_height), PINK);
+                DrawLine(int(bkg_markers[2].x), 0, int(bkg_markers[2].x), int(screen_height), PINK);
+            }
             DrawTexturePro(
                 target.texture,
                 Rectangle{0, 0, screen_width, -screen_height},
