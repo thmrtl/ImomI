@@ -120,7 +120,7 @@ int main(void) {
 
     Camera2D camera = {
         .offset = { 0.0f, 0.0f },
-        .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
+        .target = { -screen_width, -screen_height * 0.5f },
         .rotation = 0.0f,
         .zoom = 1.0f,
     };
@@ -128,7 +128,7 @@ int main(void) {
     Entity player = {
         .alive = true,
         .can_move = true,
-        .pos = { -screen_width * 0.75f, 0.0f },
+        .pos = { -screen_width * 0.5f, screen_height * 0.15f },
         .velocity = { 360.0f, 360.0f },
     };
 
@@ -167,6 +167,7 @@ int main(void) {
         { screen_width * 0.85f, screen_width * 0.85f, 20.0f, 1, 50.0f },
     };
     
+    bool just_booted = true;
     bool is_paused = false;
     bool show_debug_overlay = false;
     bool can_progress = false;
@@ -217,7 +218,6 @@ int main(void) {
     };
 
     float elapsed_time = 0.0f;
-    RestartLevel();
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -241,9 +241,27 @@ int main(void) {
 
         screen_width = (float)GetScreenWidth();
         screen_height = (float)GetScreenHeight();
-        if (!is_paused)
+        float frame_time = GetFrameTime();
+
+        if (just_booted) {
+            if (inputs.fire) {
+                just_booted = false;
+                RestartLevel();
+            }
+            float progression = frame_time * 300.0f;
+            camera.target.x += progression;
+            player.pos.x += progression;
+            if (tail_time > 0.0f) {
+                tail_time -= frame_time;
+                if (tail_time <= 0.0f) {
+                    tail_time = TAIL_TIME_DEF;
+                    tail[itail] = player.pos;
+                    itail = (itail + 1) % 4;
+                }
+            }
+        }
+        else if (!is_paused)
         {
-            float frame_time = GetFrameTime();
             elapsed_time += frame_time;
             Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
 
@@ -395,56 +413,66 @@ int main(void) {
         BeginTextureMode(target);
             ClearBackground(BLANK);
             BeginMode2D(camera);
-                for (int i = 0; i < bullets.size(); i++) {
-                    Entity& bullet = bullets[i];
-                    Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
-                    if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
-                        continue;
-                    }
-                    if (bullet.alive) {
-                        DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
-                    }
-                    else if (show_debug_overlay) {
-                        Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
-                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
-                    }
+                if (just_booted) {
+
                 }
-                for (int i = 0; i < enemies.size(); i++) {
-                    Entity& enemy = enemies[i];
-                    Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
-                    if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
-                        continue;
+                else {
+                    for (int i = 0; i < bullets.size(); i++) {
+                        Entity& bullet = bullets[i];
+                        Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
+                        if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
+                            continue;
+                        }
+                        if (bullet.alive) {
+                            DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
+                        }
+                        else if (show_debug_overlay) {
+                            Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
+                            DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
+                        }
                     }
-                    if (enemy.alive && enemy.can_move) { // Alive in bounds
-                        if (enemy.type == ENEMY_SHIELD) {
-                            float shield_time = (elapsed_time - enemy.last_hit_time) / ENEMY_SHIELD_TIME_MAX;
-                            if (shield_time <= 1.0f) {
-                                float shield_size = shield_time * 20.0f;
-                                DrawEntity(enemy, { 20.0f , 20.0f }, RED);
-                                DrawEntity(enemy, { shield_size , shield_size }, SKYBLUE);
+                    for (int i = 0; i < enemies.size(); i++) {
+                        Entity& enemy = enemies[i];
+                        Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
+                        if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
+                            continue;
+                        }
+                        if (enemy.alive && enemy.can_move) { // Alive in bounds
+                            if (enemy.type == ENEMY_SHIELD) {
+                                float shield_time = (elapsed_time - enemy.last_hit_time) / ENEMY_SHIELD_TIME_MAX;
+                                if (shield_time <= 1.0f) {
+                                    float shield_size = shield_time * 20.0f;
+                                    DrawEntity(enemy, { 20.0f , 20.0f }, RED);
+                                    DrawEntity(enemy, { shield_size , shield_size }, SKYBLUE);
+                                }
+                                else {
+                                    DrawEntity(enemy, { 20.0f , 20.0f }, SKYBLUE);
+                                    DrawEntity(enemy, { 16.0f , 16.0f }, RED);
+                                }
                             }
                             else {
-                                DrawEntity(enemy, { 20.0f , 20.0f }, SKYBLUE);
-                                DrawEntity(enemy, { 16.0f , 16.0f }, RED);
+                                DrawEntity(enemy, { 20.0f , 20.0f }, RED);
                             }
                         }
-                        else {
-                            DrawEntity(enemy, { 20.0f , 20.0f }, RED);
+                        else if (show_debug_overlay) {
+                            Color color;
+                            if (enemy.alive && !enemy.can_move) { // Alive OOB
+                                color = GREEN;
+                            }
+                            else if (!enemy.alive && enemy.can_move) { // Dead in bound
+                                color = ORANGE;
+                            }
+                            else if (!enemy.alive && enemy.can_move) { // Dead OOB
+                                color = RED;
+                            }
+                            Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
+                            DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
                         }
                     }
-                    else if (show_debug_overlay) {
-                        Color color;
-                        if (enemy.alive && !enemy.can_move) { // Alive OOB
-                            color = GREEN;
-                        }
-                        else if (!enemy.alive && enemy.can_move) { // Dead in bound
-                            color = ORANGE;
-                        }
-                        else if (!enemy.alive && enemy.can_move) { // Dead OOB
-                            color = RED;
-                        }
-                        Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
-                        DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
+                    if (show_debug_overlay){
+                        DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
+                        DrawLine(0, (int)camera.target.y, 0, (int)(screen_height + camera.target.y), WHITE);
+                        DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
                     }
                 }
                 for (int i = 0; i < 4; i++) {
@@ -463,45 +491,47 @@ int main(void) {
                 else {
                     DrawEntity(player, { 30.0f , 30.0f }, GRAY);
                 }
-                if (show_debug_overlay){
-                    DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
-                    DrawLine(0, (int)camera.target.y, 0, (int)(screen_height + camera.target.y), WHITE);
-                    DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
-                }
             EndMode2D();
-            DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
-            int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
-            Color score_color;
-            if (multiplicator < 4.0f) {
-                score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+            if (just_booted) {
+                std::string press_start = "PRESS START";
+                auto width = MeasureText(press_start.c_str(), 50);
+                DrawText(press_start.c_str(), int(bkg_markers[3].x - width * 0.5f), int((screen_height - 50) * 0.5f), 50, WHITE);
             }
             else {
-                score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
-            }
-            DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
-            if (show_debug_overlay) {
-                DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
-                DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
-                DrawText(std::format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
-                DrawText(std::format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
-                DrawText(std::format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
-                DrawText(std::format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
-                DrawText(std::format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
-                DrawText(std::format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
-                DrawText(std::format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
-                DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
-                DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
-            }
-            if (warmup_time > 0.0f) {
-                auto rounded_time = (int)warmup_time;
-                auto text = rounded_time ? std::to_string(rounded_time) : "GO";
-                auto subtime = Wrap(warmup_time, 0.0f, 1.0f);
-                auto font_size = int(std::round(20 * subtime + 50));
-                int width = MeasureText(text.c_str(), font_size);
-                DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, font_size, WHITE);
-                auto subtime_text = std::format("{:.2f}", subtime);
-                width = MeasureText(subtime_text.c_str(), 30);
-                DrawText(subtime_text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4 - 30, 30, WHITE);
+                DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
+                int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
+                Color score_color;
+                if (multiplicator < 4.0f) {
+                    score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+                }
+                else {
+                    score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
+                }
+                DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
+                if (show_debug_overlay) {
+                    DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
+                    DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
+                    DrawText(std::format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
+                    DrawText(std::format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
+                    DrawText(std::format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
+                    DrawText(std::format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
+                    DrawText(std::format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
+                    DrawText(std::format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
+                    DrawText(std::format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
+                    DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
+                    DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+                }
+                if (warmup_time > 0.0f) {
+                    auto rounded_time = (int)warmup_time;
+                    auto text = rounded_time ? std::to_string(rounded_time) : "GO";
+                    auto subtime = Wrap(warmup_time, 0.0f, 1.0f);
+                    auto font_size = int(std::round(20 * subtime + 50));
+                    int width = MeasureText(text.c_str(), font_size);
+                    DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, font_size, WHITE);
+                    auto subtime_text = std::format("{:.2f}", subtime);
+                    width = MeasureText(subtime_text.c_str(), 30);
+                    DrawText(subtime_text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4 - 30, 30, WHITE);
+                }
             }
         EndTextureMode();
 
@@ -551,7 +581,6 @@ int main(void) {
             EndTextureMode();
         }
 
-        float frame_time = GetFrameTime();
         for (int i = 0; i < 3; i++) {
             auto& marker = bkg_markers[i];
             marker.x += marker.dir * marker.v * frame_time;
