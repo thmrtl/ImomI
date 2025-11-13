@@ -154,7 +154,7 @@ int main(void) {
     Vector2 tail[4]{player.pos};
     int itail = 0;
     float tail_time = TAIL_TIME_DEF;
-    
+
     struct {
         float x0;
         float x;
@@ -454,13 +454,14 @@ int main(void) {
                     DrawRectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, Color{255, 255, 255, 125});
                 }
                 if (invincibility_time > 0.0f) {
-                    float shield_size = 30.0f - invincibility_time / INVINCIBILITY_TIME_MAX * 30.0f;
+                    auto blink_period = INVINCIBILITY_TIME_MAX / 5;
+                    float shield_size = invincibility_time / INVINCIBILITY_TIME_MAX * 30.0f;
+                    auto blink_up = std::fmodf(invincibility_time, blink_period) < blink_period * 0.5f;
                     DrawEntity(player, { 30.0f , 30.0f }, DARKGRAY);
-                    DrawEntity(player, { shield_size , shield_size }, SKYBLUE);
+                    DrawEntity(player, { shield_size , shield_size }, blink_up ? DARKGRAY : GRAY);
                 }
                 else {
-                    DrawEntity(player, { 30.0f , 30.0f }, SKYBLUE);
-                    DrawEntity(player, { 26.0f , 26.0f }, DARKGRAY);
+                    DrawEntity(player, { 30.0f , 30.0f }, GRAY);
                 }
                 if (show_debug_overlay){
                     DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
