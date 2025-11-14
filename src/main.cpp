@@ -218,6 +218,9 @@ int main(void) {
     };
 
     float elapsed_time = 0.0f;
+    bool show_restart_help = false;
+    bool will_restart = false;
+    bool level_end_reached = false;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -243,6 +246,8 @@ int main(void) {
         screen_height = (float)GetScreenHeight();
         float frame_time = GetFrameTime();
 
+        level_end_reached = abs(camera.target.x) > level.length * PIXEL_PER_UNIT;
+
         if (just_booted) {
             if (inputs.fire) {
                 just_booted = false;
@@ -257,6 +262,69 @@ int main(void) {
                     tail_time = TAIL_TIME_DEF;
                     tail[itail] = player.pos;
                     itail = (itail + 1) % 4;
+                }
+            }
+        }
+        else if (!is_paused && level_end_reached) {
+            // Memo: I put statics here because quicker...
+            static bool in_place_for_cutscene = false;
+            static Vector2 target_start_cutscene = { screen_width * 0.25f, screen_height * 0.5f };
+            static float acceleration = 300.0f;
+            static float velocity = 0.0f;
+            static Vector2 target_end_cutscene = { screen_width * 0.75f, screen_height * 0.5f };
+
+            static bool on_entry = [&]() {
+                strike_time = 0.3f;
+                return true;
+            }();
+
+            static auto move_toward = [&](Vector2 target, float distance) {
+                if (!Vector2Equals(player.pos, target + camera.target)) {
+                    player.pos = Vector2MoveTowards(player.pos, target + camera.target, distance);
+                    return false;
+                }
+                return true;
+            };
+            
+            if (strike_time > 0.0f) {
+                strike_time -= frame_time;
+                if (strike_time <= 0.0f) {
+                    strike_time = 0.0f;
+                }
+            }
+
+            player.can_move = false;
+            invincibility_time = 0.0f;
+
+            if (inputs.reset) {
+                will_restart = true;
+                show_restart_help = false;
+            }
+
+            float progression = frame_time * 300.0f;
+            camera.target.x += progression;
+            player.pos.x += progression;
+            if (tail_time > 0.0f) {
+                tail_time -= frame_time;
+                if (tail_time <= 0.0f) {
+                    tail_time = TAIL_TIME_DEF;
+                    tail[itail] = player.pos;
+                    itail = (itail + 1) % 4;
+                }
+            }
+
+            if (!will_restart && !in_place_for_cutscene && move_toward(target_start_cutscene, 150.0f * frame_time)) {
+                in_place_for_cutscene = true;
+                show_restart_help = true;
+            }
+            else if (will_restart && in_place_for_cutscene) {
+                velocity += acceleration * frame_time;
+                if (move_toward(target_end_cutscene, velocity * frame_time)) {
+                    player.pos.y = -999.0f;
+                    in_place_for_cutscene = false;
+                    will_restart = false;
+                    velocity = 0.0f;
+                    RestartLevel();
                 }
             }
         }
@@ -498,21 +566,44 @@ int main(void) {
                 DrawText(press_start.c_str(), int((screen_width - width) * 0.5f), int((screen_height - 50) * 0.5f), 50, WHITE);
             }
             else {
-                if (abs(camera.target.x) > level.length * PIXEL_PER_UNIT) {
+                if (show_restart_help) {
                     std::string retry_text = "PRESS R TO RETRY";
                     auto width = MeasureText(retry_text.c_str(), 40);
                     DrawText(retry_text.c_str(), int((screen_width - width) * 0.5f), int(screen_height * 0.75f), 40, WHITE);
                 }
-                DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
-                int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
-                Color score_color;
-                if (multiplicator < 4.0f) {
-                    score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+                if (will_restart) {
+                    auto distance_to_portal = screen_width * 0.75f - player.pos.x + camera.target.x;
+                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * screen_width);
+                    auto portal_pos = screen_width * 0.75f + distance_to_portal;
+                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(screen_height), Color{255, 255, 255, 0}, WHITE);
+                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(screen_height), WHITE, Color{255, 255, 255, 0});
                 }
-                else {
-                    score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
+                if (level_end_reached && !will_restart) {
+                    int score_font_size = int(std::round(15 * (strike_time / 0.3f) + 90));
+                    auto score_text = std::format("{}", score);
+                    auto score_width = MeasureText(score_text.c_str(), score_font_size);
+                    DrawText(score_text.c_str(), int((screen_width - score_width) * 0.5f), int(screen_height * 0.25f - score_font_size * 0.5f), score_font_size, WHITE);
+                    Color score_color;
+                    if (multiplicator < 4.0f) {
+                        score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+                    }
+                    else {
+                        score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
+                    }
+                    DrawText(std::format("x{:.1f}", multiplicator).c_str(), int((screen_width + score_width) * 0.5f) + 5, int(screen_height * 0.25f), 30, score_color);
                 }
-                DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
+                else if (!will_restart) {
+                    DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
+                    int multi_font_size = int(std::round(10 * (strike_time / 0.3f) + 30));
+                    Color score_color;
+                    if (multiplicator < 4.0f) {
+                        score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
+                    }
+                    else {
+                        score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
+                    }
+                    DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
+                }
                 if (show_debug_overlay) {
                     DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
                     DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
