@@ -1,0 +1,233 @@
+#include "raylib.h"
+#include "raymath.h"
+#include "external/reasings.h"
+#include <print>
+#include <vector>
+
+#define PIXEL_PER_UNIT 100
+#define TICK_CURVE 0.003f
+#define EASE_COUNT 5
+
+struct Entity {
+    bool alive;
+    bool can_move;
+    Vector2 pos;
+    Vector2 velocity;
+    int type;
+    int hp;
+    int hp_max;
+    float last_hit_time;
+};
+
+int main() {
+    InitWindow(800, 450, "ImomI");
+    SetTargetFPS(60);
+
+    float screen_width = (float)GetScreenWidth();
+    float screen_height = (float)GetScreenHeight();
+    Vector2 resolution{screen_width, screen_height};
+
+    Camera2D camera;
+    Entity player;
+    float timer_curve = 0.0f;
+
+    auto reset = [&]() {
+        camera = {
+            .offset = { screen_width * 0.5f, screen_height * 0.5f },
+            .target = { 0.0f, 0.0f },
+            .rotation = 0.0f,
+            .zoom = 1.0f,
+        };
+
+        player = {
+            .alive = true,
+            .can_move = true,
+            .pos = { -screen_width * 0.5f, screen_height * 0.15f },
+            .velocity = { 360.0f, 360.0f },
+        };
+    };
+
+    auto draw_entity = [](Entity const& entity, Vector2 size, Color color)
+    {
+        int x = int(round(entity.pos.x - size.x * 0.5f));
+        int y = int(round(entity.pos.y - size.y * 0.5f));
+        int width = int(round(size.x));
+        int height = int(round(size.y));
+        DrawRectangle(x, y, width, height, color);
+    };
+
+    struct PortalAnimation {
+        Entity& player;
+        Vector2 start;
+        Vector2 end;
+        float progress;
+        float acceleration;
+        float duration;
+    };
+
+    auto update_portal_animation = [](PortalAnimation& animation, float frametime) {
+        animation.progress += frametime;
+        animation.progress = Clamp(animation.progress, 0.0f, animation.duration);
+        float f = EaseQuadIn(animation.progress, 0.0f, animation.acceleration, animation.duration);
+        // player.pos.x = start.x + 
+    };
+
+    auto update_curve_values = [](float elapsed, float duration, int type) {
+        switch (type) {
+        case 1:
+            return EaseQuadIn(elapsed, 0.0f, 1.0f, duration);
+        case 2:
+            return EaseCircIn(elapsed, 0.0f, 1.0f, duration);
+        case 3:
+            return EaseBackIn(elapsed, 0.0f, 1.0f, duration);
+        case 4:
+            return EaseQuadInOut(elapsed, 0.0f, 1.0f, duration);
+        case 0:
+        default:
+            return EaseLinearIn(elapsed, 0.0f, 1.0f, duration);
+        }
+    };
+
+    reset();
+    float duration = 2.0f;
+    int n_points = 100;
+    int i_points = 0;
+    std::vector<Vector2> points(n_points + 1);
+    int ease_type = 0;
+    float elapsed_time = 0.0f;
+    while (!WindowShouldClose()) {
+        screen_width = (float)GetScreenWidth();
+        screen_height = (float)GetScreenHeight();
+        float frametime = GetFrameTime();
+
+        //--- Logic
+        if (IsKeyDown(KEY_I)) {
+            camera.target.y -= 500.0f * frametime;
+        }
+        if (IsKeyDown(KEY_J)) {
+            camera.target.x -= 500.0f * frametime;
+        }
+        if (IsKeyDown(KEY_K)) {
+            camera.target.y += 500.0f * frametime;
+        }
+        if (IsKeyDown(KEY_L)) {
+            camera.target.x += 500.0f * frametime;
+        }
+        if (IsKeyDown(KEY_COMMA)) {
+            camera.zoom -= 0.05f;
+            camera.zoom = Clamp(camera.zoom, 0.5f, 2.0f);
+        }
+        if (IsKeyDown(KEY_M)) {
+            camera.zoom += 0.05f;
+            camera.zoom = Clamp(camera.zoom, 0.5f, 2.0f);
+        }
+        if (IsKeyPressed(KEY_N)) {
+            camera.zoom = 1.0f;
+            camera.target.x = 0.0f;
+            camera.target.y = 0.0f;
+        }
+        if (IsKeyPressed(KEY_SPACE)) {
+            timer_curve = 0.0f;
+            i_points = 0;
+        }
+        if (IsKeyPressed(KEY_LEFT)) {
+            ease_type++;
+            if (ease_type >= EASE_COUNT) {
+                ease_type = 0;
+            }
+            timer_curve = 0.0f;
+            i_points = 0;
+        }
+        if (IsKeyPressed(KEY_RIGHT)) {
+            ease_type--;
+            if (ease_type < 0) {
+                ease_type = EASE_COUNT - 1;
+            }
+            timer_curve = 0.0f;
+            i_points = 0;
+        }
+
+        if (i_points != -1 && i_points <= n_points) {
+            timer_curve += frametime;
+            while (timer_curve >= TICK_CURVE && i_points <= n_points) {
+                timer_curve -= TICK_CURVE;
+                float t = i_points * duration / n_points;
+                points[i_points].x = t;
+                points[i_points].y = update_curve_values(t, duration, ease_type);
+                i_points++;
+            }
+        }
+
+        elapsed_time += frametime;
+        if (elapsed_time > duration) {
+            elapsed_time = 0.0f;
+        }
+
+        //--- Drawing
+        BeginDrawing();
+            ClearBackground(BLACK);
+            BeginMode2D(camera);
+                draw_entity(player, { 30.0f , 30.0f }, LIGHTGRAY);
+                if (i_points != -1) {
+                    float x0 = roundf(points[0].x * PIXEL_PER_UNIT);
+                    float y0 = roundf(points[0].y * PIXEL_PER_UNIT);
+                    DrawCircle(int(x0), int(y0), 5, WHITE);
+                    for (int i = 1; i <= std::min(i_points, n_points); i++) {
+                        float xi = roundf(points[i].x * PIXEL_PER_UNIT);
+                        float yi = -roundf(points[i].y * PIXEL_PER_UNIT);
+                        float xj = roundf(points[i - 1].x * PIXEL_PER_UNIT);
+                        float yj = -roundf(points[i - 1].y * PIXEL_PER_UNIT);
+                        DrawLine(int(xi), int(yi), int(xj), int(yj), WHITE);
+                        DrawCircle(int(xi), int(yi), 1, WHITE);
+                    }
+                }
+
+                float xa = 0;
+                float xb = duration * PIXEL_PER_UNIT;
+                float ya = -1.0f * PIXEL_PER_UNIT;
+                for (int i = 0; i < 5; i++) {
+                    float t = fmodf(elapsed_time + i * duration / 5, duration);
+                    float e = update_curve_values(t, duration, ease_type);
+                    float x = roundf(t * PIXEL_PER_UNIT);
+                    float y = -roundf(e * PIXEL_PER_UNIT);
+                    DrawCircle(int(x), int(y), 5, RED);
+                    float r = Lerp(xa, xb, e);
+                    x = r;
+                    y = ya;
+                    DrawCircle(int(x), int(y), 5, RED);
+                }
+            EndMode2D();
+
+            auto tl = GetScreenToWorld2D({0.0f, 0.0f}, camera);
+            auto br = GetScreenToWorld2D(resolution, camera);
+            auto left = GetWorldToScreen2D({tl.x, 0}, camera);
+            auto right = GetWorldToScreen2D({br.x, 0}, camera);
+            auto top = GetWorldToScreen2D({0, tl.y}, camera);
+            auto bottom = GetWorldToScreen2D({0, br.y}, camera);
+            DrawLine(int(roundf(left.x)), int(roundf(left.y)), int(roundf(right.x)), int(roundf(right.y)), RED);
+            DrawLine(int(roundf(top.x)), int(roundf(top.y)), int(roundf(bottom.x)), int(roundf(bottom.y)), GREEN);
+
+            auto a_left = GetWorldToScreen2D({tl.x, -1.0f * PIXEL_PER_UNIT}, camera);
+            auto a_right = GetWorldToScreen2D({br.x, -1.0f * PIXEL_PER_UNIT}, camera);
+            auto a_top = GetWorldToScreen2D({duration * PIXEL_PER_UNIT, tl.y}, camera);
+            auto a_bottom = GetWorldToScreen2D({duration * PIXEL_PER_UNIT, br.y}, camera);
+            DrawLine(int(roundf(a_left.x)), int(roundf(a_left.y)), int(roundf(a_right.x)), int(roundf(a_right.y)), WHITE);
+            DrawLine(int(roundf(a_top.x)), int(roundf(a_top.y)), int(roundf(a_bottom.x)), int(roundf(a_bottom.y)), WHITE);
+
+            auto origin =  GetWorldToScreen2D({0, 0}, camera);
+            bool origin_x_is_out = origin.x < 0 || origin.x >= screen_width;
+            bool origin_y_is_out = origin.y < 0 || origin.y >= screen_height;
+            if (origin_x_is_out || origin_y_is_out) {
+                origin.x = Clamp(origin.x, 5, screen_width - 5);
+                origin.y = Clamp(origin.y, 5, screen_height - 5);
+                if (origin_x_is_out && origin_y_is_out) {
+                    DrawCircleSector(origin, 5, 0, 180, 6, RED);
+                    DrawCircleSector(origin, 5, 180, 360, 6, GREEN);
+                }
+                else {
+                    DrawCircle(int(origin.x), int(origin.y), 5, origin_x_is_out ? RED : GREEN);
+                }
+            }
+        EndDrawing();
+    }
+}
