@@ -101,6 +101,18 @@ int main() {
         float frametime = GetFrameTime();
 
         //--- Logic
+        if (IsKeyDown(KEY_W)) {
+            player.pos.y -= player.velocity.y * frametime;
+        }
+        if (IsKeyDown(KEY_A)) {
+            player.pos.x -= player.velocity.x * frametime;
+        }
+        if (IsKeyDown(KEY_S)) {
+            player.pos.y += player.velocity.y * frametime;
+        }
+        if (IsKeyDown(KEY_D)) {
+            player.pos.x += player.velocity.x * frametime;
+        }
         if (IsKeyDown(KEY_I)) {
             camera.target.y -= 500.0f * frametime;
         }
@@ -145,6 +157,24 @@ int main() {
             }
             timer_curve = 0.0f;
             i_points = 0;
+        }
+        
+        if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
+            camera.zoom = 1.0f;
+            camera.target.x = 0.0f;
+            camera.target.y = 0.0f;
+        }
+        if (IsMouseButtonDown(MOUSE_BUTTON_LEFT)) {
+            camera.target -= GetMouseDelta() / camera.zoom;
+        }
+        Vector2 mouse_wheel = GetMouseWheelMoveV();
+        if (mouse_wheel.y > 0) {
+            camera.zoom += 0.1f;
+            camera.zoom = Clamp(camera.zoom, 0.5f, 2.0f);
+        }
+        if (mouse_wheel.y < 0) {
+            camera.zoom -= 0.1f;
+            camera.zoom = Clamp(camera.zoom, 0.5f, 2.0f);
         }
 
         if (i_points != -1 && i_points <= n_points) {
@@ -195,6 +225,15 @@ int main() {
                     x = r;
                     y = ya;
                     DrawCircle(int(x), int(y), 5, RED);
+                }
+                
+                Vector2 p{2, 5};
+                Vector2 q{8, 3};
+                for (int i = 0; i < 5; i++) {
+                    float t = fmodf(elapsed_time + i * duration / 5, duration);
+                    float e = update_curve_values(t, duration, ease_type);
+                    Vector2 pos = Vector2Lerp(p, q, e);
+                    DrawCircle(int(pos.x * PIXEL_PER_UNIT), int(-pos.y * PIXEL_PER_UNIT), 5, RED);
                 }
             EndMode2D();
 
