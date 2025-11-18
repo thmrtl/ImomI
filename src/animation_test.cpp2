@@ -57,19 +57,14 @@ int main() {
     };
 
     struct PortalAnimation {
-        Entity& player;
         Vector2 start;
         Vector2 end;
+        Vector2 pos;
         float progress;
-        float acceleration;
+        float speed;
         float duration;
-    };
-
-    auto update_portal_animation = [](PortalAnimation& animation, float frametime) {
-        animation.progress += frametime;
-        animation.progress = Clamp(animation.progress, 0.0f, animation.duration);
-        float f = EaseQuadIn(animation.progress, 0.0f, animation.acceleration, animation.duration);
-        // player.pos.x = start.x + 
+        bool playing;
+        bool looping;
     };
 
     auto update_curve_values = [](float elapsed, float duration, int type) {
@@ -88,13 +83,38 @@ int main() {
         }
     };
 
+    int ease_type = 0;
+
+    auto update_portal_animation = [&update_curve_values, ease_type](PortalAnimation& animation, float frametime) {
+        animation.progress += frametime;
+        //animation.progress = Clamp(animation.progress, 0.0f, animation.duration);
+        if (animation.looping) {
+            animation.progress = fmodf(animation.progress, animation.duration);
+        }
+        else if (animation.progress >= animation.duration) {
+            animation.playing = false;
+            animation.progress = animation.duration;
+        }
+        float t = update_curve_values(animation.progress, animation.duration, ease_type);
+        animation.pos = Vector2Lerp(animation.start, animation.end, t);
+    };
+
     reset();
     float duration = 2.0f;
     int n_points = 100;
     int i_points = 0;
     std::vector<Vector2> points(n_points + 1);
-    int ease_type = 0;
     float elapsed_time = 0.0f;
+    PortalAnimation portal_animation{
+        .start = { 2, -5 },
+        .end = { 8, -3 },
+        .pos = { 2, -5 },
+        .progress = 0.0f,
+        .speed = 1.0f,
+        .duration = duration,
+        .playing = false,
+        .looping = true,
+    };
     while (!WindowShouldClose()) {
         screen_width = (float)GetScreenWidth();
         screen_height = (float)GetScreenHeight();
@@ -138,10 +158,6 @@ int main() {
             camera.target.x = 0.0f;
             camera.target.y = 0.0f;
         }
-        if (IsKeyPressed(KEY_SPACE)) {
-            timer_curve = 0.0f;
-            i_points = 0;
-        }
         if (IsKeyPressed(KEY_LEFT)) {
             ease_type++;
             if (ease_type >= EASE_COUNT) {
@@ -157,6 +173,15 @@ int main() {
             }
             timer_curve = 0.0f;
             i_points = 0;
+        }
+        if (IsKeyPressed(KEY_SPACE)) {
+            portal_animation.playing = !portal_animation.playing;
+            player.can_move = !portal_animation.playing;
+        }
+        if (IsKeyDown(KEY_V)) {
+            portal_animation.looping = !portal_animation.looping;
+            portal_animation.playing = true;
+            player.can_move = !portal_animation.playing;
         }
         
         if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
@@ -193,9 +218,54 @@ int main() {
             elapsed_time = 0.0f;
         }
 
+        if (portal_animation.playing) {
+            update_portal_animation(portal_animation, frametime);
+            player.pos = portal_animation.pos * PIXEL_PER_UNIT;
+        }
+
         //--- Drawing
         BeginDrawing();
             ClearBackground(BLACK);
+
+            auto tl = GetScreenToWorld2D({0.0f, 0.0f}, camera);
+            auto br = GetScreenToWorld2D(resolution, camera);
+            auto left = GetWorldToScreen2D({tl.x, 0}, camera);
+            auto right = GetWorldToScreen2D({br.x, 0}, camera);
+            auto top = GetWorldToScreen2D({0, tl.y}, camera);
+            auto bottom = GetWorldToScreen2D({0, br.y}, camera);
+            DrawLine(int(roundf(left.x)), int(roundf(left.y)), int(roundf(right.x)), int(roundf(right.y)), RED);
+            DrawLine(int(roundf(top.x)), int(roundf(top.y)), int(roundf(bottom.x)), int(roundf(bottom.y)), GREEN);
+
+            BeginMode2D(camera);
+                int n_ylines = int((br.x - tl.x) / PIXEL_PER_UNIT) + 1;
+                int n_xlines = int((br.y - tl.y) / PIXEL_PER_UNIT) + 1;
+                for (int i = 0; i <= std::max(n_xlines, n_ylines); i++) {
+                    float x = (i * 1.0f + int(tl.x / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
+                    float y = (i * 1.0f + int(tl.y / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
+                    if (x != 0) {
+                        DrawLine(int(roundf(x)), int(roundf(tl.y)), int(roundf(x)), int(roundf(br.y)), LIGHTGRAY);
+                    }
+                    if (y != 0) {
+                        DrawLine(int(roundf(tl.x)), int(roundf(y)), int(roundf(br.x)), int(roundf(y)), LIGHTGRAY);
+                    }
+                }
+            EndMode2D();
+
+            auto origin =  GetWorldToScreen2D({0, 0}, camera);
+            bool origin_x_is_out = origin.x < 0 || origin.x >= screen_width;
+            bool origin_y_is_out = origin.y < 0 || origin.y >= screen_height;
+            if (origin_x_is_out || origin_y_is_out) {
+                origin.x = Clamp(origin.x, 5, screen_width - 5);
+                origin.y = Clamp(origin.y, 5, screen_height - 5);
+                if (origin_x_is_out && origin_y_is_out) {
+                    DrawCircleSector(origin, 5, 0, 180, 6, RED);
+                    DrawCircleSector(origin, 5, 180, 360, 6, GREEN);
+                }
+                else {
+                    DrawCircle(int(origin.x), int(origin.y), 5, origin_x_is_out ? RED : GREEN);
+                }
+            }
+
             BeginMode2D(camera);
                 draw_entity(player, { 30.0f , 30.0f }, LIGHTGRAY);
                 if (i_points != -1) {
@@ -236,37 +306,6 @@ int main() {
                     DrawCircle(int(pos.x * PIXEL_PER_UNIT), int(-pos.y * PIXEL_PER_UNIT), 5, RED);
                 }
             EndMode2D();
-
-            auto tl = GetScreenToWorld2D({0.0f, 0.0f}, camera);
-            auto br = GetScreenToWorld2D(resolution, camera);
-            auto left = GetWorldToScreen2D({tl.x, 0}, camera);
-            auto right = GetWorldToScreen2D({br.x, 0}, camera);
-            auto top = GetWorldToScreen2D({0, tl.y}, camera);
-            auto bottom = GetWorldToScreen2D({0, br.y}, camera);
-            DrawLine(int(roundf(left.x)), int(roundf(left.y)), int(roundf(right.x)), int(roundf(right.y)), RED);
-            DrawLine(int(roundf(top.x)), int(roundf(top.y)), int(roundf(bottom.x)), int(roundf(bottom.y)), GREEN);
-
-            auto a_left = GetWorldToScreen2D({tl.x, -1.0f * PIXEL_PER_UNIT}, camera);
-            auto a_right = GetWorldToScreen2D({br.x, -1.0f * PIXEL_PER_UNIT}, camera);
-            auto a_top = GetWorldToScreen2D({duration * PIXEL_PER_UNIT, tl.y}, camera);
-            auto a_bottom = GetWorldToScreen2D({duration * PIXEL_PER_UNIT, br.y}, camera);
-            DrawLine(int(roundf(a_left.x)), int(roundf(a_left.y)), int(roundf(a_right.x)), int(roundf(a_right.y)), WHITE);
-            DrawLine(int(roundf(a_top.x)), int(roundf(a_top.y)), int(roundf(a_bottom.x)), int(roundf(a_bottom.y)), WHITE);
-
-            auto origin =  GetWorldToScreen2D({0, 0}, camera);
-            bool origin_x_is_out = origin.x < 0 || origin.x >= screen_width;
-            bool origin_y_is_out = origin.y < 0 || origin.y >= screen_height;
-            if (origin_x_is_out || origin_y_is_out) {
-                origin.x = Clamp(origin.x, 5, screen_width - 5);
-                origin.y = Clamp(origin.y, 5, screen_height - 5);
-                if (origin_x_is_out && origin_y_is_out) {
-                    DrawCircleSector(origin, 5, 0, 180, 6, RED);
-                    DrawCircleSector(origin, 5, 180, 360, 6, GREEN);
-                }
-                else {
-                    DrawCircle(int(origin.x), int(origin.y), 5, origin_x_is_out ? RED : GREEN);
-                }
-            }
         EndDrawing();
     }
 }
