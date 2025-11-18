@@ -30,15 +30,23 @@ enum class Easing {
     Count
 };
 
+enum class Looping {
+    Once,
+    Linear,
+    PingPong
+};
+
 struct Animation {
     Vector2 start;
     Vector2 end;
     Vector2 pos;
     float progress;
     float speed;
+    int direction;
     float duration;
     bool playing;
-    bool looping;
+    bool done;
+    Looping looping;
     Easing easing;
 };
 
@@ -58,20 +66,33 @@ static float Ease(float elapsed, float duration, Easing easing) {
     }
 };
 
-static void UpdateAnimation(Animation& animation, float frametime) {
+static bool ResetAnimation(Animation& animation) {
+
+}
+
+static bool UpdateAnimation(Animation& animation, float frametime) {
     if (!animation.playing) {
-        return;
+        return animation.done;
     }
     animation.progress += animation.speed * frametime;
-    if (animation.looping) {
+    if (animation.looping == Looping::Linear) {
         animation.progress = fmodf(animation.progress, animation.duration);
     }
     else if (animation.progress >= animation.duration) {
-        animation.playing = false;
-        animation.progress = animation.duration;
+        if (animation.looping == Looping::PingPong) {
+            animation.direction *= -1;
+            animation.progress = 0.0f;
+        }
+        else {
+            animation.playing = false;
+            animation.done = true;
+            animation.progress = animation.duration;
+        }
     }
-    float t = Ease(animation.progress, animation.duration, animation.easing);
+    float progress = animation.direction == 1 ? animation.progress : animation.duration - animation.progress;
+    float t = Ease(progress, animation.duration, animation.easing);
     animation.pos = Vector2Lerp(animation.start, animation.end, t);
+    return animation.done;
 };
 
 int main() {
@@ -84,7 +105,6 @@ int main() {
 
     Camera2D camera;
     Entity player;
-    //float timer_curve = 0.0f;
 
     auto reset = [&]() {
         camera = {
@@ -152,9 +172,10 @@ int main() {
         .pos = { 2, -5 },
         .progress = 0.0f,
         .speed = 1.0f,
+        .direction = 1,
         .duration = duration,
         .playing = false,
-        .looping = true,
+        .looping = Looping::Linear,
         .easing = Easing::Linear,
     };
     Timer timer_curve{
@@ -238,12 +259,26 @@ int main() {
         }
         if (IsKeyPressed(KEY_SPACE)) {
             portal_animation.playing = !portal_animation.playing;
+            if (portal_animation.done) {
+                portal_animation.done = false;
+                portal_animation.progress = 0.0f;
+                portal_animation.pos = portal_animation.start;
+            }
             player.can_move = !portal_animation.playing;
         }
-        if (IsKeyDown(KEY_V)) {
-            portal_animation.looping = !portal_animation.looping;
-            portal_animation.playing = true;
-            player.can_move = !portal_animation.playing;
+        if (IsKeyPressed(KEY_V)) {
+            switch (portal_animation.looping)
+            {
+            case Looping::Linear:
+                portal_animation.looping = Looping::Once;
+                break;
+            case Looping::Once:
+                portal_animation.looping = Looping::PingPong;
+                break;
+            case Looping::PingPong:
+                portal_animation.looping = Looping::Linear;
+                break;
+            }
         }
         
         if (IsMouseButtonPressed(MOUSE_BUTTON_MIDDLE)) {
@@ -274,7 +309,9 @@ int main() {
         }
 
         if (portal_animation.playing) {
-            UpdateAnimation(portal_animation, frametime);
+            if (UpdateAnimation(portal_animation, frametime)) {
+                std::println("Once");
+            }
             player.pos = portal_animation.pos * PIXEL_PER_UNIT;
         }
 
