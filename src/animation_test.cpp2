@@ -274,20 +274,20 @@ int main() {
             auto right = GetWorldToScreen2D({br.x, 0}, camera);
             auto top = GetWorldToScreen2D({0, tl.y}, camera);
             auto bottom = GetWorldToScreen2D({0, br.y}, camera);
-            DrawLine(int(roundf(left.x)), int(roundf(left.y)), int(roundf(right.x)), int(roundf(right.y)), RED);
-            DrawLine(int(roundf(top.x)), int(roundf(top.y)), int(roundf(bottom.x)), int(roundf(bottom.y)), GREEN);
+            DrawLine(lroundf(left.x), lroundf(left.y), lroundf(right.x), lroundf(right.y), RED);
+            DrawLine(lroundf(top.x), lroundf(top.y), lroundf(bottom.x), lroundf(bottom.y), GREEN);
 
             BeginMode2D(camera);
                 int n_ylines = int((br.x - tl.x) / PIXEL_PER_UNIT) + 1;
                 int n_xlines = int((br.y - tl.y) / PIXEL_PER_UNIT) + 1;
                 for (int i = 0; i <= std::max(n_xlines, n_ylines); i++) {
-                    float x = (i * 1.0f + int(tl.x / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
-                    float y = (i * 1.0f + int(tl.y / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
+                    float x = (i * 1.0f + int((tl.x + PIXEL_PER_UNIT * 0.5f) / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
+                    float y = (i * 1.0f + int((tl.y + PIXEL_PER_UNIT * 0.5f) / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
                     if (x != 0) {
-                        DrawLine(int(roundf(x)), int(roundf(tl.y)), int(roundf(x)), int(roundf(br.y)), GRAY);
+                        DrawLine(lroundf(x), lroundf(tl.y), lroundf(x), lroundf(br.y), GRAY);
                     }
                     if (y != 0) {
-                        DrawLine(int(roundf(tl.x)), int(roundf(y)), int(roundf(br.x)), int(roundf(y)), GRAY);
+                        DrawLine(lroundf(tl.x), lroundf(y), lroundf(br.x), lroundf(y), GRAY);
                     }
                 }
             EndMode2D();
