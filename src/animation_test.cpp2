@@ -20,6 +20,60 @@ struct Entity {
     float last_hit_time;
 };
 
+//--- Animation
+enum class Easing {
+    Linear,
+    QuadIn,
+    QuadInOut,
+    CircIn,
+    BackIn,
+    Count
+};
+
+struct Animation {
+    Vector2 start;
+    Vector2 end;
+    Vector2 pos;
+    float progress;
+    float speed;
+    float duration;
+    bool playing;
+    bool looping;
+    Easing easing;
+};
+
+static float Ease(float elapsed, float duration, Easing easing) {
+    switch (easing) {
+    case Easing::QuadIn:
+        return EaseQuadIn(elapsed, 0.0f, 1.0f, duration);
+    case Easing::CircIn:
+        return EaseCircIn(elapsed, 0.0f, 1.0f, duration);
+    case Easing::BackIn:
+        return EaseBackIn(elapsed, 0.0f, 1.0f, duration);
+    case Easing::QuadInOut:
+        return EaseQuadInOut(elapsed, 0.0f, 1.0f, duration);
+    case Easing::Linear:
+    default:
+        return EaseLinearIn(elapsed, 0.0f, 1.0f, duration);
+    }
+};
+
+static void UpdateAnimation(Animation& animation, float frametime) {
+    if (!animation.playing) {
+        return;
+    }
+    animation.progress += animation.speed * frametime;
+    if (animation.looping) {
+        animation.progress = fmodf(animation.progress, animation.duration);
+    }
+    else if (animation.progress >= animation.duration) {
+        animation.playing = false;
+        animation.progress = animation.duration;
+    }
+    float t = Ease(animation.progress, animation.duration, animation.easing);
+    animation.pos = Vector2Lerp(animation.start, animation.end, t);
+};
+
 int main() {
     InitWindow(800, 450, "ImomI");
     SetTargetFPS(60);
@@ -57,49 +111,6 @@ int main() {
         DrawRectangle(x, y, width, height, color);
     };
 
-    struct PortalAnimation {
-        Vector2 start;
-        Vector2 end;
-        Vector2 pos;
-        float progress;
-        float speed;
-        float duration;
-        bool playing;
-        bool looping;
-    };
-
-    auto ease = [](float elapsed, float duration, int type) {
-        switch (type) {
-        case 1:
-            return EaseQuadIn(elapsed, 0.0f, 1.0f, duration);
-        case 2:
-            return EaseCircIn(elapsed, 0.0f, 1.0f, duration);
-        case 3:
-            return EaseBackIn(elapsed, 0.0f, 1.0f, duration);
-        case 4:
-            return EaseQuadInOut(elapsed, 0.0f, 1.0f, duration);
-        case 0:
-        default:
-            return EaseLinearIn(elapsed, 0.0f, 1.0f, duration);
-        }
-    };
-
-    int ease_type = 0;
-
-    auto update_portal_animation = [&ease, &ease_type](PortalAnimation& animation, float frametime) {
-        animation.progress += animation.speed * frametime;
-        //animation.progress = Clamp(animation.progress, 0.0f, animation.duration);
-        if (animation.looping) {
-            animation.progress = fmodf(animation.progress, animation.duration);
-        }
-        else if (animation.progress >= animation.duration) {
-            animation.playing = false;
-            animation.progress = animation.duration;
-        }
-        float t = ease(animation.progress, animation.duration, ease_type);
-        animation.pos = Vector2Lerp(animation.start, animation.end, t);
-    };
-
     struct Timer {
         bool running;
         bool run_once;
@@ -135,7 +146,7 @@ int main() {
     int i_points = 0;
     std::vector<Vector2> points(n_points + 1);
     float elapsed_time = 0.0f;
-    PortalAnimation portal_animation{
+    Animation portal_animation{
         .start = { 2, -5 },
         .end = { 8, -3 },
         .pos = { 2, -5 },
@@ -144,6 +155,7 @@ int main() {
         .duration = duration,
         .playing = false,
         .looping = true,
+        .easing = Easing::Linear,
     };
     Timer timer_curve{
         .running = true,
@@ -159,7 +171,7 @@ int main() {
         }
         float t = i_points * duration / n_points;
         points[i_points].x = t;
-        points[i_points].y = ease(t, duration, ease_type);
+        points[i_points].y = Ease(t, duration, portal_animation.easing);
         i_points++;
     };
 
@@ -207,17 +219,19 @@ int main() {
             camera.target.y = 0.0f;
         }
         if (IsKeyPressed(KEY_LEFT)) {
-            ease_type++;
-            if (ease_type >= EASE_COUNT) {
-                ease_type = 0;
+            portal_animation.easing = Easing(int(portal_animation.easing) + 1);
+            if (portal_animation.easing == Easing::Count) {
+                portal_animation.easing = Easing::Linear;
             }
             reset_timer(timer_curve);
             i_points = 0;
         }
         if (IsKeyPressed(KEY_RIGHT)) {
-            ease_type--;
-            if (ease_type < 0) {
-                ease_type = EASE_COUNT - 1;
+            if (portal_animation.easing == Easing::Linear) {
+                portal_animation.easing = Easing::BackIn;
+            }
+            else {
+                portal_animation.easing = Easing(int(portal_animation.easing) - 1);
             }
             reset_timer(timer_curve);
             i_points = 0;
@@ -260,7 +274,7 @@ int main() {
         }
 
         if (portal_animation.playing) {
-            update_portal_animation(portal_animation, frametime);
+            UpdateAnimation(portal_animation, frametime);
             player.pos = portal_animation.pos * PIXEL_PER_UNIT;
         }
 
@@ -328,7 +342,7 @@ int main() {
                 float ya = -1.0f * PIXEL_PER_UNIT;
                 for (int i = 0; i < 5; i++) {
                     float t = fmodf(elapsed_time + i * duration / 5, duration);
-                    float e = ease(t, duration, ease_type);
+                    float e = Ease(t, duration, portal_animation.easing);
                     float x = roundf(t * PIXEL_PER_UNIT);
                     float y = -roundf(e * PIXEL_PER_UNIT);
                     DrawCircle(int(x), int(y), 5, RED);
@@ -342,7 +356,7 @@ int main() {
                 Vector2 q{8, 3};
                 for (int i = 0; i < 5; i++) {
                     float t = fmodf(elapsed_time + i * duration / 5, duration);
-                    float e = ease(t, duration, ease_type);
+                    float e = Ease(t, duration, portal_animation.easing);
                     Vector2 pos = Vector2Lerp(p, q, e);
                     DrawCircle(int(pos.x * PIXEL_PER_UNIT), int(-pos.y * PIXEL_PER_UNIT), 5, RED);
                 }
