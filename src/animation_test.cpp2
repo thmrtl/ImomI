@@ -1,6 +1,7 @@
 #include "raylib.h"
 #include "raymath.h"
 #include "external/reasings.h"
+#include <functional>
 #include <print>
 #include <vector>
 
@@ -29,7 +30,7 @@ int main() {
 
     Camera2D camera;
     Entity player;
-    float timer_curve = 0.0f;
+    //float timer_curve = 0.0f;
 
     auto reset = [&]() {
         camera = {
@@ -67,7 +68,7 @@ int main() {
         bool looping;
     };
 
-    auto update_curve_values = [](float elapsed, float duration, int type) {
+    auto ease = [](float elapsed, float duration, int type) {
         switch (type) {
         case 1:
             return EaseQuadIn(elapsed, 0.0f, 1.0f, duration);
@@ -85,8 +86,8 @@ int main() {
 
     int ease_type = 0;
 
-    auto update_portal_animation = [&update_curve_values, ease_type](PortalAnimation& animation, float frametime) {
-        animation.progress += frametime;
+    auto update_portal_animation = [&ease, &ease_type](PortalAnimation& animation, float frametime) {
+        animation.progress += animation.speed * frametime;
         //animation.progress = Clamp(animation.progress, 0.0f, animation.duration);
         if (animation.looping) {
             animation.progress = fmodf(animation.progress, animation.duration);
@@ -95,8 +96,37 @@ int main() {
             animation.playing = false;
             animation.progress = animation.duration;
         }
-        float t = update_curve_values(animation.progress, animation.duration, ease_type);
+        float t = ease(animation.progress, animation.duration, ease_type);
         animation.pos = Vector2Lerp(animation.start, animation.end, t);
+    };
+
+    struct Timer {
+        bool running;
+        bool run_once;
+        float elapsed;
+        float duration;
+    };
+
+    auto update_timer = [](Timer& timer, float frametime, std::function<void()> on_tick = {}) {
+        if (!timer.running) {
+            return;
+        }
+        timer.elapsed += frametime;
+        while (timer.running && timer.elapsed >= timer.duration) {
+            timer.elapsed -= timer.duration;
+            if (on_tick) {
+                on_tick();
+            }
+            if (timer.run_once) {
+                timer.running = false;
+                break;
+            }
+        }
+    };
+
+    auto reset_timer = [](Timer& timer) {
+        timer.elapsed = 0.0f,
+        timer.running = true;
     };
 
     reset();
@@ -115,6 +145,24 @@ int main() {
         .playing = false,
         .looping = true,
     };
+    Timer timer_curve{
+        .running = true,
+        .run_once = false,
+        .elapsed = 0.0f,
+        .duration = 0.003f,
+    };
+
+    auto update_curve_values = [&]() {
+        if (i_points > n_points) {
+            timer_curve.running = false;
+            return;
+        }
+        float t = i_points * duration / n_points;
+        points[i_points].x = t;
+        points[i_points].y = ease(t, duration, ease_type);
+        i_points++;
+    };
+
     while (!WindowShouldClose()) {
         screen_width = (float)GetScreenWidth();
         screen_height = (float)GetScreenHeight();
@@ -163,7 +211,7 @@ int main() {
             if (ease_type >= EASE_COUNT) {
                 ease_type = 0;
             }
-            timer_curve = 0.0f;
+            reset_timer(timer_curve);
             i_points = 0;
         }
         if (IsKeyPressed(KEY_RIGHT)) {
@@ -171,7 +219,7 @@ int main() {
             if (ease_type < 0) {
                 ease_type = EASE_COUNT - 1;
             }
-            timer_curve = 0.0f;
+            reset_timer(timer_curve);
             i_points = 0;
         }
         if (IsKeyPressed(KEY_SPACE)) {
@@ -203,14 +251,7 @@ int main() {
         }
 
         if (i_points != -1 && i_points <= n_points) {
-            timer_curve += frametime;
-            while (timer_curve >= TICK_CURVE && i_points <= n_points) {
-                timer_curve -= TICK_CURVE;
-                float t = i_points * duration / n_points;
-                points[i_points].x = t;
-                points[i_points].y = update_curve_values(t, duration, ease_type);
-                i_points++;
-            }
+            update_timer(timer_curve, frametime, update_curve_values);
         }
 
         elapsed_time += frametime;
@@ -243,10 +284,10 @@ int main() {
                     float x = (i * 1.0f + int(tl.x / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
                     float y = (i * 1.0f + int(tl.y / PIXEL_PER_UNIT)) * PIXEL_PER_UNIT;
                     if (x != 0) {
-                        DrawLine(int(roundf(x)), int(roundf(tl.y)), int(roundf(x)), int(roundf(br.y)), LIGHTGRAY);
+                        DrawLine(int(roundf(x)), int(roundf(tl.y)), int(roundf(x)), int(roundf(br.y)), GRAY);
                     }
                     if (y != 0) {
-                        DrawLine(int(roundf(tl.x)), int(roundf(y)), int(roundf(br.x)), int(roundf(y)), LIGHTGRAY);
+                        DrawLine(int(roundf(tl.x)), int(roundf(y)), int(roundf(br.x)), int(roundf(y)), GRAY);
                     }
                 }
             EndMode2D();
@@ -287,21 +328,21 @@ int main() {
                 float ya = -1.0f * PIXEL_PER_UNIT;
                 for (int i = 0; i < 5; i++) {
                     float t = fmodf(elapsed_time + i * duration / 5, duration);
-                    float e = update_curve_values(t, duration, ease_type);
+                    float e = ease(t, duration, ease_type);
                     float x = roundf(t * PIXEL_PER_UNIT);
                     float y = -roundf(e * PIXEL_PER_UNIT);
                     DrawCircle(int(x), int(y), 5, RED);
                     float r = Lerp(xa, xb, e);
-                    x = r;
-                    y = ya;
-                    DrawCircle(int(x), int(y), 5, RED);
+                    float s = Lerp(0, ya, e);
+                    DrawCircle(int(r), int(ya), 5, RED);
+                    DrawCircle(int(xb), int(s), 5, RED);
                 }
                 
                 Vector2 p{2, 5};
                 Vector2 q{8, 3};
                 for (int i = 0; i < 5; i++) {
                     float t = fmodf(elapsed_time + i * duration / 5, duration);
-                    float e = update_curve_values(t, duration, ease_type);
+                    float e = ease(t, duration, ease_type);
                     Vector2 pos = Vector2Lerp(p, q, e);
                     DrawCircle(int(pos.x * PIXEL_PER_UNIT), int(-pos.y * PIXEL_PER_UNIT), 5, RED);
                 }
