@@ -66,8 +66,12 @@ static float Ease(float elapsed, float duration, Easing easing) {
     }
 };
 
-static bool ResetAnimation(Animation& animation) {
-
+static void ResetAnimation(Animation& animation) {
+    animation.progress = 0.0f;
+    animation.direction = 1; // I like the behaviour rn, I could add cond. on looping type.
+    animation.pos = animation.start;
+    animation.playing = false;
+    animation.done = false;
 }
 
 static bool UpdateAnimation(Animation& animation, float frametime) {
@@ -258,11 +262,12 @@ int main() {
             i_points = 0;
         }
         if (IsKeyPressed(KEY_SPACE)) {
-            portal_animation.playing = !portal_animation.playing;
             if (portal_animation.done) {
-                portal_animation.done = false;
-                portal_animation.progress = 0.0f;
-                portal_animation.pos = portal_animation.start;
+                ResetAnimation(portal_animation);
+                portal_animation.playing = true;
+            }
+            else {
+                portal_animation.playing = !portal_animation.playing;
             }
             player.can_move = !portal_animation.playing;
         }
