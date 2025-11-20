@@ -170,6 +170,8 @@ int main(void) {
     bool just_booted = true;
     bool is_paused = false;
     bool show_debug_overlay = false;
+    bool level_end_reached = false;
+    bool start_new_level = false;
     bool can_progress = false;
     float cooldown_time = 0.4f;
     int alive_entities = 0;
@@ -183,6 +185,8 @@ int main(void) {
     auto RestartLevel = [&]{
         is_paused = false;
         show_debug_overlay = false;
+        level_end_reached = false;
+        start_new_level = true;
         can_progress = false;
         cooldown_time = 0.4f;
         alive_entities = 0;
@@ -217,10 +221,12 @@ int main(void) {
         };
     };
 
+    Vector2 target_start_cutscene = {};
+    Vector2 target_end_cutscene = {};
+    
     float elapsed_time = 0.0f;
     bool show_restart_help = false;
     bool will_restart = false;
-    bool level_end_reached = false;
     while (!WindowShouldClose()) {
         if (is_paused) {
             SetMusicVolume(music, 0.2f);
@@ -246,7 +252,9 @@ int main(void) {
         screen_height = (float)GetScreenHeight();
         float frame_time = GetFrameTime();
 
-        level_end_reached = abs(camera.target.x) > level.length * PIXEL_PER_UNIT;
+        if (abs(camera.target.x) > level.length * PIXEL_PER_UNIT) {
+            level_end_reached = true;
+        }
 
         if (just_booted) {
             if (inputs.fire) {
@@ -265,18 +273,67 @@ int main(void) {
                 }
             }
         }
+        else if (!is_paused && start_new_level) {
+            // Memo: I put statics here because quicker...
+            static float acceleration = 200.0f;
+            static float velocity = 0.0f;
+            static bool should_call_on_entry = true;
+            static auto on_entry = [&]() {
+                target_start_cutscene = { screen_width * 0.5f, screen_height * 0.5f };
+                target_end_cutscene = { screen_width * 0.25f + 0.5f * PIXEL_PER_UNIT, screen_height * 0.5f };
+                player.pos = target_start_cutscene + camera.target;
+            };
+
+            if (should_call_on_entry) {
+                on_entry();
+                should_call_on_entry = false;
+            }
+
+            static auto move_toward = [&](Vector2 target, float distance) {
+                if (!Vector2Equals(player.pos, target + camera.target)) {
+                    player.pos = Vector2MoveTowards(player.pos, target + camera.target, distance);
+                    return false;
+                }
+                return true;
+            };
+
+            velocity += acceleration * frame_time;
+            if (move_toward(target_end_cutscene, velocity * frame_time)) {
+                start_new_level = false;
+                should_call_on_entry = true;
+                velocity = 0.0f;
+                camera.target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f };
+                player.pos = { -screen_width * 0.75f, 0.0f };
+            }
+
+            float progression = frame_time * 300.0f;
+            camera.target.x += progression;
+            player.pos.x += progression;
+            if (tail_time > 0.0f) {
+                tail_time -= frame_time;
+                if (tail_time <= 0.0f) {
+                    tail_time = TAIL_TIME_DEF;
+                    tail[itail] = player.pos;
+                    itail = (itail + 1) % 4;
+                }
+            }
+        }
         else if (!is_paused && level_end_reached) {
             // Memo: I put statics here because quicker...
             static bool in_place_for_cutscene = false;
-            static Vector2 target_start_cutscene = { screen_width * 0.25f, screen_height * 0.5f };
             static float acceleration = 300.0f;
             static float velocity = 0.0f;
-            static Vector2 target_end_cutscene = { screen_width * 0.75f, screen_height * 0.5f };
-
-            static bool on_entry = [&]() {
+            static bool should_call_on_entry = true;
+            static auto on_entry = [&]() {
+                target_start_cutscene = { screen_width * 0.25f, screen_height * 0.5f };
+                target_end_cutscene = { screen_width * 0.75f, screen_height * 0.5f };
                 strike_time = 0.3f;
-                return true;
-            }();
+            };
+
+            if (should_call_on_entry) {
+                on_entry();
+                should_call_on_entry = false;
+            }
 
             static auto move_toward = [&](Vector2 target, float distance) {
                 if (!Vector2Equals(player.pos, target + camera.target)) {
@@ -323,6 +380,7 @@ int main(void) {
                     player.pos.y = -999.0f;
                     in_place_for_cutscene = false;
                     will_restart = false;
+                    should_call_on_entry = false;
                     velocity = 0.0f;
                     RestartLevel();
                 }
@@ -572,9 +630,16 @@ int main(void) {
                     DrawText(retry_text.c_str(), int((screen_width - width) * 0.5f), int(screen_height * 0.75f), 40, WHITE);
                 }
                 if (will_restart) {
-                    auto distance_to_portal = screen_width * 0.75f - player.pos.x + camera.target.x;
+                    auto distance_to_portal = target_end_cutscene.x - player.pos.x + camera.target.x;
                     auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * screen_width);
-                    auto portal_pos = screen_width * 0.75f + distance_to_portal;
+                    auto portal_pos = target_end_cutscene.x + distance_to_portal;
+                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(screen_height), Color{255, 255, 255, 0}, WHITE);
+                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(screen_height), WHITE, Color{255, 255, 255, 0});
+                }
+                if (start_new_level) {
+                    auto distance_to_portal = abs(target_start_cutscene.x - player.pos.x + camera.target.x);
+                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * screen_width);
+                    auto portal_pos = target_start_cutscene.x - 3 * distance_to_portal;
                     DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(screen_height), Color{255, 255, 255, 0}, WHITE);
                     DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(screen_height), WHITE, Color{255, 255, 255, 0});
                 }
@@ -617,7 +682,7 @@ int main(void) {
                     DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
                     DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
                 }
-                if (warmup_time > 0.0f) {
+                if (warmup_time > 0.0f && !start_new_level) {
                     auto rounded_time = (int)warmup_time;
                     auto text = rounded_time ? std::to_string(rounded_time) : "GO";
                     auto subtime = Wrap(warmup_time, 0.0f, 1.0f);
