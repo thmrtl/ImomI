@@ -31,6 +31,7 @@ struct Entity {
 
 struct Inputs {
     Vector2 dir;
+    bool start;
     bool pause;
     bool fire;
     bool reset;
@@ -265,7 +266,7 @@ int main(void) {
         }
 
         if (just_booted) {
-            if (inputs.fire) {
+            if (inputs.start) {
                 just_booted = false;
                 RestartLevel();
             }
@@ -281,7 +282,7 @@ int main(void) {
                 }
             }
         }
-        else if (!is_paused && start_new_level) {
+        else if (start_new_level) {
             // Memo: I put statics here because quicker...
             static float acceleration = 200.0f;
             static float velocity = 0.0f;
@@ -326,7 +327,7 @@ int main(void) {
                 }
             }
         }
-        else if (!is_paused && level_end_reached) {
+        else if (level_end_reached) {
             // Memo: I put statics here because quicker...
             static bool in_place_for_cutscene = false;
             static float acceleration = 300.0f;
@@ -361,7 +362,7 @@ int main(void) {
             player.can_move = false;
             invincibility_time = 0.0f;
 
-            if (inputs.reset) {
+            if (inputs.start) {
                 will_restart = true;
                 show_restart_help = false;
             }
@@ -633,7 +634,7 @@ int main(void) {
             }
             else {
                 if (show_restart_help) {
-                    std::string retry_text = "PRESS R TO RETRY";
+                    std::string retry_text = "PRESS START TO RETRY";
                     auto width = MeasureText(retry_text.c_str(), 40);
                     DrawText(retry_text.c_str(), int((game_width - width) * 0.5f), int(game_height * 0.75f), 40, WHITE);
                 }
@@ -791,7 +792,7 @@ int main(void) {
                 );
             EndBlendMode();
 
-            if (is_paused) {
+            if (is_paused && !level_end_reached && !start_new_level) {
                 DrawRectangle(0, 0, (int)game_width, (int)game_height, Color{0, 0, 0, 125});
                 int width = MeasureText("Pause", 24);
                 DrawText("Pause", ((int)game_width - width) / 2, ((int)game_height - 12) / 2, 25, WHITE);
@@ -895,6 +896,7 @@ Inputs GetInputs()
 {
     Inputs inputs;
     inputs.dir = GetInputDir();
+    inputs.start = IsKeyPressed(KEY_SPACE);
     inputs.pause = IsKeyPressed(KEY_P);
     inputs.fire = IsKeyDown(KEY_SPACE);
     inputs.reset = IsKeyPressed(KEY_R);
@@ -907,6 +909,7 @@ Inputs GetInputs()
     if (IsKeyPressed(KEY_L) || IsKeyPressedRepeat(KEY_L))
         inputs.pan = 50.0f;
     if (IsGamepadAvailable(0)) {
+        inputs.start |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_MIDDLE_RIGHT);
         inputs.pause |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_MIDDLE_RIGHT);
         inputs.fire |= IsGamepadButtonDown(0, GAMEPAD_BUTTON_RIGHT_FACE_RIGHT);
         inputs.reset |= IsGamepadButtonPressed(0, GAMEPAD_BUTTON_RIGHT_FACE_UP);
