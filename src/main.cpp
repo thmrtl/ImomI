@@ -37,6 +37,7 @@ struct Inputs {
     float pan;
     bool stop;
     bool debug_overlay;
+    bool fullscreen;
 };
 
 struct Level {
@@ -242,6 +243,10 @@ int main(void) {
         UpdateMusicStream(music);
         
         Inputs inputs = GetInputs();
+
+        if (inputs.fullscreen) {
+            ToggleBorderlessWindowed();
+        }
         
         if (inputs.pause) {
             is_paused = !is_paused;
@@ -894,6 +899,7 @@ Inputs GetInputs()
     inputs.fire = IsKeyDown(KEY_SPACE);
     inputs.reset = IsKeyPressed(KEY_R);
     inputs.stop = IsKeyPressed(KEY_I);
+    inputs.fullscreen = IsKeyPressed(KEY_F5) || (IsKeyDown(KEY_LEFT_ALT) && IsKeyPressed(KEY_ENTER));
     inputs.debug_overlay = IsKeyPressed(KEY_O);
     inputs.pan = 0.0f;
     if (IsKeyPressed(KEY_J) || IsKeyPressedRepeat(KEY_J))
