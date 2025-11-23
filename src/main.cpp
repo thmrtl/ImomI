@@ -94,7 +94,12 @@ int main(void) {
         std::println("{}", e.what());
     }
 
-    InitWindow(800, 450, "ImomI");
+    float game_width = 800;
+    float game_height = 450;
+    SetConfigFlags(FLAG_WINDOW_RESIZABLE | FLAG_VSYNC_HINT);
+    InitWindow(int(game_width), int(game_height), "ImomI");
+    SetWindowMinSize(int(game_width), int(game_height));
+
     SetTargetFPS(60);
 
     InitAudioDevice();
@@ -104,23 +109,23 @@ int main(void) {
     
     float screen_width = (float)GetScreenWidth();
     float screen_height = (float)GetScreenHeight();
-    Vector2 resolution{screen_width, screen_height};
+    Vector2 game_resolution{game_width, game_height};
 
-    RenderTexture2D target = LoadRenderTexture((int)screen_width, (int)screen_height);
-    RenderTexture2D bufferA_target = LoadRenderTexture((int)screen_width, (int)screen_height);
-    RenderTexture2D bufferB_target = LoadRenderTexture((int)screen_width, (int)screen_height);
+    RenderTexture2D target = LoadRenderTexture((int)game_width, (int)game_height);
+    RenderTexture2D bufferA_target = LoadRenderTexture((int)game_width, (int)game_height);
+    RenderTexture2D bufferB_target = LoadRenderTexture((int)game_width, (int)game_height);
     Shader threshold_shader = LoadShader(nullptr, "Assets/threshold.fs");
     Shader blur_shader = LoadShader(nullptr, "Assets/blur.fs");
     Shader crt_shader = LoadShader(nullptr, "Assets/crt.fs");
     int blur_direction_loc = GetShaderLocation(blur_shader, "direction");
     int crt_resolution_loc = GetShaderLocation(crt_shader, "resolution");
-    SetShaderValue(crt_shader, crt_resolution_loc, &resolution, SHADER_UNIFORM_VEC2);
+    SetShaderValue(crt_shader, crt_resolution_loc, &game_resolution, SHADER_UNIFORM_VEC2);
 
     PlayMusicStream(music);
 
     Camera2D camera = {
         .offset = { 0.0f, 0.0f },
-        .target = { -screen_width, -screen_height * 0.5f },
+        .target = { -game_width, -game_height * 0.5f },
         .rotation = 0.0f,
         .zoom = 1.0f,
     };
@@ -128,7 +133,7 @@ int main(void) {
     Entity player = {
         .alive = true,
         .can_move = true,
-        .pos = { -screen_width * 0.5f, screen_height * 0.15f },
+        .pos = { -game_width * 0.5f, game_height * 0.15f },
         .velocity = { 360.0f, 360.0f },
     };
 
@@ -162,9 +167,9 @@ int main(void) {
         int dir;
         float limit;
     } bkg_markers[] = {
-        { screen_width * 0.2f, screen_width * 0.2f, 20.0f, 1, 50.0f },
-        { screen_width * 0.5f, screen_width * 0.5f, 20.0f, -1, 50.0f },
-        { screen_width * 0.85f, screen_width * 0.85f, 20.0f, 1, 50.0f },
+        { game_width * 0.2f, game_width * 0.2f, 20.0f, 1, 50.0f },
+        { game_width * 0.5f, game_width * 0.5f, 20.0f, -1, 50.0f },
+        { game_width * 0.85f, game_width * 0.85f, 20.0f, 1, 50.0f },
     };
     
     bool just_booted = true;
@@ -199,7 +204,7 @@ int main(void) {
         player = {
             .alive = true,
             .can_move = false,
-            .pos = { -screen_width * 0.75f, 0.0f },
+            .pos = { -game_width * 0.75f, 0.0f },
             .velocity = { 360.0f, 360.0f },
         };
         for (auto& enemy : enemies) {
@@ -215,7 +220,7 @@ int main(void) {
         }
         camera = {
             .offset = { 0.0f, 0.0f },
-            .target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f },
+            .target = { -game_width - 0.5f * PIXEL_PER_UNIT, -game_height * 0.5f },
             .rotation = 0.0f,
             .zoom = 1.0f,
         };
@@ -248,8 +253,6 @@ int main(void) {
             show_debug_overlay = !show_debug_overlay;
         }
 
-        screen_width = (float)GetScreenWidth();
-        screen_height = (float)GetScreenHeight();
         float frame_time = GetFrameTime();
 
         if (abs(camera.target.x) > level.length * PIXEL_PER_UNIT) {
@@ -279,8 +282,8 @@ int main(void) {
             static float velocity = 0.0f;
             static bool should_call_on_entry = true;
             static auto on_entry = [&]() {
-                target_start_cutscene = { screen_width * 0.5f, screen_height * 0.5f };
-                target_end_cutscene = { screen_width * 0.25f + 0.5f * PIXEL_PER_UNIT, screen_height * 0.5f };
+                target_start_cutscene = { game_width * 0.5f, game_height * 0.5f };
+                target_end_cutscene = { game_width * 0.25f + 0.5f * PIXEL_PER_UNIT, game_height * 0.5f };
                 player.pos = target_start_cutscene + camera.target;
             };
 
@@ -302,8 +305,8 @@ int main(void) {
                 start_new_level = false;
                 should_call_on_entry = true;
                 velocity = 0.0f;
-                camera.target = { -screen_width - 0.5f * PIXEL_PER_UNIT, -screen_height * 0.5f };
-                player.pos = { -screen_width * 0.75f, 0.0f };
+                camera.target = { -game_width - 0.5f * PIXEL_PER_UNIT, -game_height * 0.5f };
+                player.pos = { -game_width * 0.75f, 0.0f };
             }
 
             float progression = frame_time * 300.0f;
@@ -325,8 +328,8 @@ int main(void) {
             static float velocity = 0.0f;
             static bool should_call_on_entry = true;
             static auto on_entry = [&]() {
-                target_start_cutscene = { screen_width * 0.25f, screen_height * 0.5f };
-                target_end_cutscene = { screen_width * 0.75f, screen_height * 0.5f };
+                target_start_cutscene = { game_width * 0.25f, game_height * 0.5f };
+                target_end_cutscene = { game_width * 0.75f, game_height * 0.5f };
                 strike_time = 0.3f;
             };
 
@@ -389,7 +392,7 @@ int main(void) {
         else if (!is_paused)
         {
             elapsed_time += frame_time;
-            Vector2 screen_center = { screen_width * 0.5f, screen_height * 0.5f };
+            Vector2 screen_center = { game_width * 0.5f, game_height * 0.5f };
 
             if (inputs.reset) {
                 RestartLevel();
@@ -445,8 +448,8 @@ int main(void) {
                 player.pos.x += frame_time * player.velocity.x * inputs.dir.x;
                 player.pos.y += frame_time * player.velocity.y * inputs.dir.y;
             }
-            player.pos.x = Clamp(player.pos.x, camera.target.x, camera.target.x + screen_width);
-            player.pos.y = Clamp(player.pos.y, camera.target.y, camera.target.y + screen_height);
+            player.pos.x = Clamp(player.pos.x, camera.target.x, camera.target.x + game_width);
+            player.pos.y = Clamp(player.pos.y, camera.target.y, camera.target.y + game_height);
             
             if (tail_time > 0.0f) {
                 tail_time -= frame_time;
@@ -477,7 +480,7 @@ int main(void) {
                 alive_entities++;
                 if (!enemy.can_move) {
                     Vector2& pos = spawn_pos[i];
-                    if (pos.x - 10.0f >= camera.target.x + screen_width)
+                    if (pos.x - 10.0f >= camera.target.x + game_width)
                         continue;
                     enemy.can_move = true;
                     enemy.pos = pos;
@@ -529,7 +532,7 @@ int main(void) {
                 if (bullet.alive) {
                     bullet.pos.x += frame_time * bullet.velocity.x;
                     bullet.pos.y += frame_time * bullet.velocity.y;
-                    if (bullet.pos.x - 5 >= camera.target.x + screen_width || bullet.pos.x + 5 <= camera.target.x) {
+                    if (bullet.pos.x - 5 >= camera.target.x + game_width || bullet.pos.x + 5 <= camera.target.x) {
                         bullet.alive = false;
                     }
                 }
@@ -546,7 +549,7 @@ int main(void) {
                     for (int i = 0; i < bullets.size(); i++) {
                         Entity& bullet = bullets[i];
                         Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
-                        if (pos.x + 5 <= 0 || pos.x - 5 >= screen_width) {
+                        if (pos.x + 5 <= 0 || pos.x - 5 >= game_width) {
                             continue;
                         }
                         if (bullet.alive) {
@@ -560,7 +563,7 @@ int main(void) {
                     for (int i = 0; i < enemies.size(); i++) {
                         Entity& enemy = enemies[i];
                         Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
-                        if (pos.x + 10 <= 0 || pos.x - 10 >= screen_width) {
+                        if (pos.x + 10 <= 0 || pos.x - 10 >= game_width) {
                             continue;
                         }
                         if (enemy.alive && enemy.can_move) { // Alive in bounds
@@ -596,9 +599,9 @@ int main(void) {
                         }
                     }
                     if (show_debug_overlay){
-                        DrawRectangle(Rectangle(camera.target.x, camera.target.y, screen_width, screen_height), RED);
-                        DrawLine(0, (int)camera.target.y, 0, (int)(screen_height + camera.target.y), WHITE);
-                        DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(screen_height + camera.target.y), WHITE);
+                        DrawRectangle(Rectangle(camera.target.x, camera.target.y, game_width, game_height), RED);
+                        DrawLine(0, (int)camera.target.y, 0, (int)(game_height + camera.target.y), WHITE);
+                        DrawLine(int(level.length * PIXEL_PER_UNIT), (int)camera.target.y, int(level.length * PIXEL_PER_UNIT), (int)(game_height + camera.target.y), WHITE);
                     }
                 }
                 for (int i = 0; i < 4; i++) {
@@ -621,33 +624,33 @@ int main(void) {
             if (just_booted) {
                 std::string press_start = "PRESS START";
                 auto width = MeasureText(press_start.c_str(), 50);
-                DrawText(press_start.c_str(), int((screen_width - width) * 0.5f), int((screen_height - 50) * 0.5f), 50, WHITE);
+                DrawText(press_start.c_str(), int((game_width - width) * 0.5f), int((game_height - 50) * 0.5f), 50, WHITE);
             }
             else {
                 if (show_restart_help) {
                     std::string retry_text = "PRESS R TO RETRY";
                     auto width = MeasureText(retry_text.c_str(), 40);
-                    DrawText(retry_text.c_str(), int((screen_width - width) * 0.5f), int(screen_height * 0.75f), 40, WHITE);
+                    DrawText(retry_text.c_str(), int((game_width - width) * 0.5f), int(game_height * 0.75f), 40, WHITE);
                 }
                 if (will_restart) {
                     auto distance_to_portal = target_end_cutscene.x - player.pos.x + camera.target.x;
-                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * screen_width);
+                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * game_width);
                     auto portal_pos = target_end_cutscene.x + distance_to_portal;
-                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(screen_height), Color{255, 255, 255, 0}, WHITE);
-                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(screen_height), WHITE, Color{255, 255, 255, 0});
+                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(game_height), Color{255, 255, 255, 0}, WHITE);
+                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(game_height), WHITE, Color{255, 255, 255, 0});
                 }
                 if (start_new_level) {
                     auto distance_to_portal = abs(target_start_cutscene.x - player.pos.x + camera.target.x);
-                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * screen_width);
+                    auto portal_half_width = 50.0f * (distance_to_portal ? 50.0f / distance_to_portal : 2 * game_width);
                     auto portal_pos = target_start_cutscene.x - 3 * distance_to_portal;
-                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(screen_height), Color{255, 255, 255, 0}, WHITE);
-                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(screen_height), WHITE, Color{255, 255, 255, 0});
+                    DrawRectangleGradientH(int(portal_pos - portal_half_width), 0, int(portal_half_width), int(game_height), Color{255, 255, 255, 0}, WHITE);
+                    DrawRectangleGradientH(int(portal_pos), 0, int(portal_half_width), int(game_height), WHITE, Color{255, 255, 255, 0});
                 }
                 if (level_end_reached && !will_restart) {
                     int score_font_size = int(std::round(15 * (strike_time / 0.3f) + 90));
                     auto score_text = std::format("{}", score);
                     auto score_width = MeasureText(score_text.c_str(), score_font_size);
-                    DrawText(score_text.c_str(), int((screen_width - score_width) * 0.5f), int(screen_height * 0.25f - score_font_size * 0.5f), score_font_size, WHITE);
+                    DrawText(score_text.c_str(), int((game_width - score_width) * 0.5f), int(game_height * 0.25f - score_font_size * 0.5f), score_font_size, WHITE);
                     Color score_color;
                     if (multiplicator < 4.0f) {
                         score_color = ColorLerp(WHITE, YELLOW, (multiplicator - 1.0f) / 3.0f);
@@ -655,7 +658,7 @@ int main(void) {
                     else {
                         score_color = ColorLerp(YELLOW, RED, (multiplicator - 4.0f) / 3.0f);
                     }
-                    DrawText(std::format("x{:.1f}", multiplicator).c_str(), int((screen_width + score_width) * 0.5f) + 5, int(screen_height * 0.25f), 30, score_color);
+                    DrawText(std::format("x{:.1f}", multiplicator).c_str(), int((game_width + score_width) * 0.5f) + 5, int(game_height * 0.25f), 30, score_color);
                 }
                 else if (!will_restart) {
                     DrawText(std::format("{}", score).c_str(), 2, 0, 50, WHITE);
@@ -670,17 +673,17 @@ int main(void) {
                     DrawText(std::format("x{:.1f}", multiplicator).c_str(), 2, 50, multi_font_size, score_color);
                 }
                 if (show_debug_overlay) {
-                    DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)screen_width / 2, 0, 20, WHITE);
-                    DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)screen_width / 2, 20, 20, WHITE);
+                    DrawText(std::format("cTime: {:.2f}", cooldown_time).c_str(), (int)game_width / 2, 0, 20, WHITE);
+                    DrawText(std::format("iTime: {:.2f}", invincibility_time).c_str(), (int)game_width / 2, 20, 20, WHITE);
                     DrawText(std::format("Player: {:.2f},   {:.2f}", player.pos.x, player.pos.y).c_str(), 0, 0, 20, WHITE);
                     DrawText(std::format("Offset: {:.2f},   {:.2f}", camera.offset.x, camera.offset.y).c_str(), 0, 20, 20, WHITE);
                     DrawText(std::format("Target: {:.2f},   {:.2f}", camera.target.x, camera.target.y).c_str(), 0, 40, 20, WHITE);
                     DrawText(std::format("Rotation: {:.2f}", camera.rotation).c_str(), 0, 60, 20, WHITE);
                     DrawText(std::format("Zoom: {:.2f}", camera.zoom).c_str(), 0, 80, 20, WHITE);
-                    DrawText(std::format("Alive: {}", alive_entities).c_str(), 0, (int)screen_height - 80, 20, WHITE);
-                    DrawText(std::format("Active: {}", active_entities).c_str(), 0, (int)screen_height - 60, 20, WHITE);
-                    DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)screen_height - 40, 20, WHITE);
-                    DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)screen_height - 20, 20, WHITE);
+                    DrawText(std::format("Alive: {}", alive_entities).c_str(), 0, (int)game_height - 80, 20, WHITE);
+                    DrawText(std::format("Active: {}", active_entities).c_str(), 0, (int)game_height - 60, 20, WHITE);
+                    DrawText(std::format("Dead: {}", enemies.size() - alive_entities).c_str(), 0, (int)game_height - 40, 20, WHITE);
+                    DrawText(std::format("Inactive: {}", alive_entities - active_entities).c_str(), 0, (int)game_height - 20, 20, WHITE);
                 }
                 if (warmup_time > 0.0f && !start_new_level) {
                     auto rounded_time = (int)warmup_time;
@@ -688,10 +691,10 @@ int main(void) {
                     auto subtime = Wrap(warmup_time, 0.0f, 1.0f);
                     auto font_size = int(std::round(20 * subtime + 50));
                     int width = MeasureText(text.c_str(), font_size);
-                    DrawText(text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4, font_size, WHITE);
+                    DrawText(text.c_str(), ((int)game_width - width) / 2, (int)game_height / 4, font_size, WHITE);
                     auto subtime_text = std::format("{:.2f}", subtime);
                     width = MeasureText(subtime_text.c_str(), 30);
-                    DrawText(subtime_text.c_str(), ((int)screen_width - width) / 2, (int)screen_height / 4 - 30, 30, WHITE);
+                    DrawText(subtime_text.c_str(), ((int)game_width - width) / 2, (int)game_height / 4 - 30, 30, WHITE);
                 }
             }
         EndTextureMode();
@@ -701,8 +704,8 @@ int main(void) {
             BeginShaderMode(threshold_shader);
                 DrawTexturePro(
                     target.texture,
-                    Rectangle{0, 0, screen_width, -screen_height},
-                    Rectangle{0, 0, screen_width, screen_height},
+                    Rectangle{0, 0, game_width, -game_height},
+                    Rectangle{0, 0, game_width, game_height},
                     Vector2{0.0f, 0.0f},
                     0.0f,
                     WHITE
@@ -713,12 +716,12 @@ int main(void) {
         for (int i = 0; i < 5; i++) {
             BeginTextureMode(bufferB_target);
                 BeginShaderMode(blur_shader);
-                    Vector2 blur_direction{1.5f / screen_width, 0.0f};
+                    Vector2 blur_direction{1.5f / game_width, 0.0f};
                     SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
                     DrawTexturePro(
                         bufferA_target.texture,
-                        Rectangle{0, 0, screen_width, -screen_height},
-                        Rectangle{0, 0, screen_width, screen_height},
+                        Rectangle{0, 0, game_width, -game_height},
+                        Rectangle{0, 0, game_width, game_height},
                         Vector2{0.0f, 0.0f},
                         0.0f,
                         WHITE
@@ -728,12 +731,12 @@ int main(void) {
 
             BeginTextureMode(bufferA_target);
                 BeginShaderMode(blur_shader);
-                    blur_direction = {0.0f, 1.5f / screen_height};
+                    blur_direction = {0.0f, 1.5f / game_height};
                     SetShaderValue(blur_shader, blur_direction_loc, &blur_direction, SHADER_UNIFORM_VEC2);
                     DrawTexturePro(
                         bufferB_target.texture,
-                        Rectangle{0, 0, screen_width, -screen_height},
-                        Rectangle{0, 0, screen_width, screen_height},
+                        Rectangle{0, 0, game_width, -game_height},
+                        Rectangle{0, 0, game_width, game_height},
                         Vector2{0.0f, 0.0f},
                         0.0f,
                         WHITE
@@ -755,19 +758,19 @@ int main(void) {
 
         BeginTextureMode(bufferB_target);
             ClearBackground(BLANK);
-            DrawRectangleGradientH(0, 0, int(bkg_markers[0].x), int(screen_height), DARKPURPLE, BLACK);
-            DrawRectangleGradientH(int(bkg_markers[0].x), 0, int(bkg_markers[1].x - bkg_markers[0].x + 1), int(screen_height), BLACK, DARKPURPLE);
-            DrawRectangle(int(bkg_markers[1].x), 0, int(bkg_markers[2].x - bkg_markers[1].x + 1), int(screen_height), DARKPURPLE);
-            DrawRectangleGradientH(int(bkg_markers[2].x), 0, int(screen_width - bkg_markers[2].x + 1), int(screen_height), DARKPURPLE, PURPLE);
+            DrawRectangleGradientH(0, 0, int(bkg_markers[0].x), int(game_height), DARKPURPLE, BLACK);
+            DrawRectangleGradientH(int(bkg_markers[0].x), 0, int(bkg_markers[1].x - bkg_markers[0].x + 1), int(game_height), BLACK, DARKPURPLE);
+            DrawRectangle(int(bkg_markers[1].x), 0, int(bkg_markers[2].x - bkg_markers[1].x + 1), int(game_height), DARKPURPLE);
+            DrawRectangleGradientH(int(bkg_markers[2].x), 0, int(game_width - bkg_markers[2].x + 1), int(game_height), DARKPURPLE, PURPLE);
             if (show_debug_overlay) {
-                DrawLine(int(bkg_markers[0].x), 0, int(bkg_markers[0].x), int(screen_height), PINK);
-                DrawLine(int(bkg_markers[1].x), 0, int(bkg_markers[1].x), int(screen_height), PINK);
-                DrawLine(int(bkg_markers[2].x), 0, int(bkg_markers[2].x), int(screen_height), PINK);
+                DrawLine(int(bkg_markers[0].x), 0, int(bkg_markers[0].x), int(game_height), PINK);
+                DrawLine(int(bkg_markers[1].x), 0, int(bkg_markers[1].x), int(game_height), PINK);
+                DrawLine(int(bkg_markers[2].x), 0, int(bkg_markers[2].x), int(game_height), PINK);
             }
             DrawTexturePro(
                 target.texture,
-                Rectangle{0, 0, screen_width, -screen_height},
-                Rectangle{0, 0, screen_width, screen_height},
+                Rectangle{0, 0, game_width, -game_height},
+                Rectangle{0, 0, game_width, game_height},
                 Vector2{0.0f, 0.0f},
                 0.0f,
                 WHITE
@@ -775,8 +778,8 @@ int main(void) {
             BeginBlendMode(BLEND_ADDITIVE);
                 DrawTexturePro(
                     bufferA_target.texture,
-                    Rectangle{0, 0, screen_width, -screen_height},
-                    Rectangle{0, 0, screen_width, screen_height},
+                    Rectangle{0, 0, game_width, -game_height},
+                    Rectangle{0, 0, game_width, game_height},
                     Vector2{0.0f, 0.0f},
                     0.0f,
                     WHITE
@@ -784,21 +787,27 @@ int main(void) {
             EndBlendMode();
 
             if (is_paused) {
-                DrawRectangle(0, 0, (int)screen_width, (int)screen_height, Color{0, 0, 0, 125});
+                DrawRectangle(0, 0, (int)game_width, (int)game_height, Color{0, 0, 0, 125});
                 int width = MeasureText("Pause", 24);
-                DrawText("Pause", ((int)screen_width - width) / 2, ((int)screen_height - 12) / 2, 25, WHITE);
+                DrawText("Pause", ((int)game_width - width) / 2, ((int)game_height - 12) / 2, 25, WHITE);
             }
 
-            DrawFPS((int)screen_width - 100, (int)screen_height - 50);
+            DrawFPS((int)game_width - 100, (int)game_height - 50);
         EndTextureMode();
 
+        float scale = std::min((float)GetScreenWidth() / game_width, (float)GetScreenHeight() / game_height);
         BeginDrawing();
             ClearBackground(BLACK);
             BeginShaderMode(crt_shader);
                 DrawTexturePro(
                     bufferB_target.texture,
-                    Rectangle{0, 0, screen_width, -screen_height},
-                    Rectangle{0, 0, screen_width, screen_height},
+                    Rectangle{0, 0, game_width, -game_height},
+                    Rectangle{
+                        (GetScreenWidth() - (game_width * scale)) * 0.5f,
+                        (GetScreenHeight() - (game_height * scale)) * 0.5f,
+                        game_width * scale,
+                        game_height * scale
+                    },
                     Vector2{0.0f, 0.0f},
                     0.0f,
                     WHITE
