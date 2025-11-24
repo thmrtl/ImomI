@@ -13,10 +13,23 @@
 #define WARMUP_TIME_MAX 3.1f
 #define INVINCIBILITY_TIME_MAX 1.5f
 #define ENEMY_SHIELD_TIME_MAX 1.0f
+#define ENEMY_FIRE_TIME_MAX 2.0f
 #define MULTIPLICATOR_MIN 1.0f
 #define TAIL_TIME_DEF 0.1f
 
+#define PLAYER_SIZE 30.0f
+#define ENEMY_SIZE 20.0f
+#define BULLET_SIZE_X 10.0f
+#define BULLET_SIZE_Y 5.0f
+
 #define ENEMY_SHIELD 2
+#define ENEMY_SHOOTER 3
+
+#define BULLET_FRIEND 0
+#define BULLET_FOE 1
+
+#define BULLET_FRIEND_SPEED 1000.0f 
+#define BULLET_FOE_SPEED 100.0f
 
 struct Entity {
     bool alive;
@@ -27,6 +40,7 @@ struct Entity {
     int hp;
     int hp_max;
     float last_hit_time;
+    float last_fire_time;
 };
 
 struct Inputs {
@@ -50,7 +64,7 @@ Inputs GetInputs();
 Rectangle GetBoundingBox(float cx, float cy, float width, float height);
 void DrawRectangle(Rectangle rect, Color color);
 void DrawEntity(Entity const& entity, Vector2 size, Color color);
-void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity);
+void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity, int type);
 
 int main(void) {
     Level level;
@@ -470,11 +484,11 @@ int main(void) {
                 tail[i].x += progression;
             }
 
-            Rectangle player_rect = GetBoundingBox(player.pos.x, player.pos.y, 30.0f, 30.0f);
+            Rectangle player_rect = GetBoundingBox(player.pos.x, player.pos.y, PLAYER_SIZE, PLAYER_SIZE);
 
             if (inputs.fire && cooldown_time <= 0.0f) {
                 cooldown_time = 0.12f;
-                CreateBullet(bullets, { player.pos.x + 10, player.pos.y }, { 1000.0f, 0.0f });
+                CreateBullet(bullets, { player.pos.x + PLAYER_SIZE * 0.5f, player.pos.y }, { BULLET_FRIEND_SPEED, 0.0f }, BULLET_FRIEND);
             }
 
             alive_entities = 0;
@@ -486,10 +500,11 @@ int main(void) {
                 alive_entities++;
                 if (!enemy.can_move) {
                     Vector2& pos = spawn_pos[i];
-                    if (pos.x - 10.0f >= camera.target.x + game_width)
+                    if (pos.x - ENEMY_SIZE * 0.5f >= camera.target.x + game_width)
                         continue;
                     enemy.can_move = true;
                     enemy.pos = pos;
+                    enemy.last_fire_time = ENEMY_FIRE_TIME_MAX;
                 }
                 active_entities++;
 
@@ -499,7 +514,7 @@ int main(void) {
                     continue;
                 }
 
-                Rectangle enemy_rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
+                Rectangle enemy_rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, ENEMY_SIZE, ENEMY_SIZE);
                 if (invincibility_time <= 0.0f && CheckCollisionRecs(player_rect, enemy_rect)) {
                     invincibility_time = INVINCIBILITY_TIME_MAX;
                     player.hp--;
@@ -507,10 +522,15 @@ int main(void) {
                     strike_time = 0.3f;
                 }
 
+                if (enemy.type == ENEMY_SHOOTER && elapsed_time - enemy.last_fire_time >= ENEMY_FIRE_TIME_MAX) {
+                    enemy.last_fire_time = elapsed_time;
+                    CreateBullet(bullets, { enemy.pos.x - ENEMY_SIZE * 0.5f, enemy.pos.y }, { -BULLET_FOE_SPEED, 0.0f }, BULLET_FOE);
+                }
+
                 for (int j = 0; j < bullets.size(); j++) {
                     Entity& bullet = bullets[j];
-                    if (bullet.alive) {
-                        Rectangle bullet_rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
+                    if (bullet.alive && bullet.type == BULLET_FRIEND) {
+                        Rectangle bullet_rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, BULLET_SIZE_X, BULLET_SIZE_Y);
                         if (CheckCollisionRecs(bullet_rect, enemy_rect)) {
                             bullet.alive = false;
                             if (enemy.type == ENEMY_SHIELD && elapsed_time - enemy.last_hit_time >= ENEMY_SHIELD_TIME_MAX) {
@@ -541,8 +561,19 @@ int main(void) {
                     if (bullet.pos.x - 5 >= camera.target.x + game_width || bullet.pos.x + 5 <= camera.target.x) {
                         bullet.alive = false;
                     }
+                    else if (bullet.type == BULLET_FOE) {
+                        Rectangle bullet_rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, BULLET_SIZE_X, BULLET_SIZE_Y);
+                        if (invincibility_time <= 0.0f && CheckCollisionRecs(player_rect, bullet_rect)) {
+                            invincibility_time = INVINCIBILITY_TIME_MAX;
+                            player.hp--;
+                            multiplicator = MULTIPLICATOR_MIN;
+                            strike_time = 0.3f;
+                        }
+                    }
                 }
             }
+
+            
         }
 
         BeginTextureMode(target);
@@ -555,38 +586,53 @@ int main(void) {
                     for (int i = 0; i < bullets.size(); i++) {
                         Entity& bullet = bullets[i];
                         Vector2 pos = GetWorldToScreen2D(bullet.pos, camera);
-                        if (pos.x + 5 <= 0 || pos.x - 5 >= game_width) {
+                        if (pos.x + BULLET_SIZE_X * 0.5f <= 0 || pos.x - BULLET_SIZE_X * 0.5f >= game_width) {
                             continue;
                         }
                         if (bullet.alive) {
-                            DrawEntity(bullet, { 10.0f, 5.0f }, PINK);
+                            DrawEntity(bullet, { BULLET_SIZE_X, BULLET_SIZE_Y }, bullet.type == BULLET_FRIEND ? PINK : SKYBLUE);
                         }
                         else if (show_debug_overlay) {
-                            Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, 10.0f, 5.0f);
+                            Rectangle rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, BULLET_SIZE_X, BULLET_SIZE_Y);
                             DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, PURPLE);
                         }
                     }
                     for (int i = 0; i < enemies.size(); i++) {
                         Entity& enemy = enemies[i];
                         Vector2 pos = GetWorldToScreen2D(enemy.pos, camera);
-                        if (pos.x + 10 <= 0 || pos.x - 10 >= game_width) {
+                        if (pos.x + ENEMY_SIZE * 0.5f <= 0 || pos.x - ENEMY_SIZE * 0.5f >= game_width) {
                             continue;
                         }
                         if (enemy.alive && enemy.can_move) { // Alive in bounds
                             if (enemy.type == ENEMY_SHIELD) {
                                 float shield_time = (elapsed_time - enemy.last_hit_time) / ENEMY_SHIELD_TIME_MAX;
                                 if (shield_time <= 1.0f) {
-                                    float shield_size = shield_time * 20.0f;
-                                    DrawEntity(enemy, { 20.0f , 20.0f }, RED);
+                                    float shield_size = shield_time * ENEMY_SIZE;
+                                    DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, RED);
                                     DrawEntity(enemy, { shield_size , shield_size }, SKYBLUE);
                                 }
                                 else {
-                                    DrawEntity(enemy, { 20.0f , 20.0f }, SKYBLUE);
-                                    DrawEntity(enemy, { 16.0f , 16.0f }, RED);
+                                    DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, SKYBLUE);
+                                    DrawEntity(enemy, { ENEMY_SIZE - 4.0f , ENEMY_SIZE - 4.0f }, RED);
+                                }
+                            }
+                            else if (enemy.type == ENEMY_SHOOTER) {
+                                float fire_time = (elapsed_time - enemy.last_fire_time) / ENEMY_FIRE_TIME_MAX;
+                                DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, Color{ 196, 93, 37, 255 });
+                                if (fire_time <= 1.0f) {
+                                    int cooldown_height = lroundf(fire_time * ENEMY_SIZE);
+                                    DrawRectangleGradientH(
+                                        lroundf(enemy.pos.x - ENEMY_SIZE * 0.5f),
+                                        lroundf(enemy.pos.y - cooldown_height * 0.5f),
+                                        lroundf(ENEMY_SIZE * 0.25f),
+                                        cooldown_height,
+                                        SKYBLUE,
+                                        Color{ 102, 191, 255, 125 }
+                                    );
                                 }
                             }
                             else {
-                                DrawEntity(enemy, { 20.0f , 20.0f }, RED);
+                                DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, RED);
                             }
                         }
                         else if (show_debug_overlay) {
@@ -600,7 +646,7 @@ int main(void) {
                             else if (!enemy.alive && enemy.can_move) { // Dead OOB
                                 color = RED;
                             }
-                            Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, 20.0f, 20.0f);
+                            Rectangle rect = GetBoundingBox(enemy.pos.x, enemy.pos.y, ENEMY_SIZE, ENEMY_SIZE);
                             DrawRectangleLines((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
                         }
                     }
@@ -618,13 +664,13 @@ int main(void) {
                 }
                 if (invincibility_time > 0.0f) {
                     auto blink_period = INVINCIBILITY_TIME_MAX / 5;
-                    float shield_size = invincibility_time / INVINCIBILITY_TIME_MAX * 30.0f;
+                    float shield_size = invincibility_time / INVINCIBILITY_TIME_MAX * PLAYER_SIZE;
                     auto blink_up = std::fmodf(invincibility_time, blink_period) < blink_period * 0.5f;
-                    DrawEntity(player, { 30.0f , 30.0f }, DARKGRAY);
+                    DrawEntity(player, { PLAYER_SIZE , PLAYER_SIZE }, DARKGRAY);
                     DrawEntity(player, { shield_size , shield_size }, blink_up ? DARKGRAY : GRAY);
                 }
                 else {
-                    DrawEntity(player, { 30.0f , 30.0f }, GRAY);
+                    DrawEntity(player, { PLAYER_SIZE , PLAYER_SIZE }, GRAY);
                 }
             EndMode2D();
             if (just_booted) {
@@ -854,7 +900,7 @@ void DrawEntity(Entity const& entity, Vector2 size, Color color)
     DrawRectangle((int)rect.x, (int)rect.y, (int)rect.width, (int)rect.height, color);
 }
 
-void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
+void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity, int type)
 {
     for (int i = 0; i < bullets.size(); i++) {
         Entity& bullet = bullets[i];
@@ -862,6 +908,7 @@ void CreateBullet(std::vector<Entity>& bullets, Vector2 pos, Vector2 velocity)
             bullet.alive = true;
             bullet.pos = pos;
             bullet.velocity = velocity;
+            bullet.type = type;
             break;
         }
     }
