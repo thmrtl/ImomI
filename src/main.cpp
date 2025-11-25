@@ -14,6 +14,7 @@
 #define INVINCIBILITY_TIME_MAX 1.5f
 #define ENEMY_SHIELD_TIME_MAX 1.0f
 #define ENEMY_FIRE_TIME_MAX 2.0f
+#define ENEMY_DEFLECT_TIME_MAX 1.0f
 #define MULTIPLICATOR_MIN 1.0f
 #define TAIL_TIME_DEF 0.1f
 
@@ -21,9 +22,11 @@
 #define ENEMY_SIZE 20.0f
 #define BULLET_SIZE_X 10.0f
 #define BULLET_SIZE_Y 5.0f
+#define DEFLECT_SIZE 30.0f
 
 #define ENEMY_SHIELD 2
 #define ENEMY_SHOOTER 3
+#define ENEMY_DEFLECT 4
 
 #define BULLET_FRIEND 0
 #define BULLET_FOE 1
@@ -532,11 +535,18 @@ int main(void) {
                     if (bullet.alive && bullet.type == BULLET_FRIEND) {
                         Rectangle bullet_rect = GetBoundingBox(bullet.pos.x, bullet.pos.y, BULLET_SIZE_X, BULLET_SIZE_Y);
                         if (CheckCollisionRecs(bullet_rect, enemy_rect)) {
-                            bullet.alive = false;
-                            if (enemy.type == ENEMY_SHIELD && elapsed_time - enemy.last_hit_time >= ENEMY_SHIELD_TIME_MAX) {
+                            if (enemy.type == ENEMY_DEFLECT && elapsed_time - enemy.last_hit_time >= ENEMY_DEFLECT_TIME_MAX) {
                                 enemy.last_hit_time = elapsed_time;
+                                bullet.velocity.y = (bullet.pos.y - enemy.pos.y) * 2.0f;
+                                bullet.velocity.x = -BULLET_FOE_SPEED;
+                                bullet.type = BULLET_FOE;
+                            }
+                            else if (enemy.type == ENEMY_SHIELD && elapsed_time - enemy.last_hit_time >= ENEMY_SHIELD_TIME_MAX) {
+                                enemy.last_hit_time = elapsed_time;
+                                bullet.alive = false;
                             }
                             else {
+                                bullet.alive = false;
                                 enemy.hp--;
                                 if (enemy.hp <= 0) {
                                     enemy.alive = false;
@@ -629,6 +639,18 @@ int main(void) {
                                         SKYBLUE,
                                         Color{ 102, 191, 255, 125 }
                                     );
+                                }
+                            }
+                            else if (enemy.type == ENEMY_DEFLECT) {
+                                float deflect_time = (elapsed_time - enemy.last_hit_time) / ENEMY_DEFLECT_TIME_MAX;
+                                if (deflect_time <= 1.0f) {
+                                    float deflect_size = deflect_time * ENEMY_SIZE;
+                                    DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, RED);
+                                    DrawEntity(enemy, { deflect_size , deflect_size }, PINK);
+                                }
+                                else {
+                                    DrawEntity(enemy, { ENEMY_SIZE , ENEMY_SIZE }, PINK);
+                                    DrawEntity(enemy, { ENEMY_SIZE - 4.0f , ENEMY_SIZE - 4.0f }, RED);
                                 }
                             }
                             else {
